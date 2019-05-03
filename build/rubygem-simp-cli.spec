@@ -1,7 +1,7 @@
 %global gemname simp-cli
 
 %global gemdir /usr/share/simp/ruby
-%global geminstdir %{gemdir}/gems/%{gemname}-%{version}
+%global geminstdir %{gemdir}/%{gemname}-%{version}
 %global cli_version 5.0.0
 %global highline_version 1.7.8
 
@@ -89,20 +89,22 @@ echo "======= %setup PWD: ${PWD}"
 echo "======= %setup gemdir: %{gemdir}"
 
 mkdir -p %{buildroot}/%{gemdir}
+mkdir -p %{buildroot}/%{geminstdir}
 mkdir -p %{buildroot}/%{_bindir} # NOTE: this is needed for el7
-gem install --local --install-dir %{buildroot}/%{gemdir} --force %{SOURCE1}
+gem install --local --install-dir %{buildroot}/%{geminstdir} --force %{SOURCE1}
 
 cd ext/gems/highline
 if [ `which bundle 2>/dev/null` ]; then
   bundle install
 fi
-gem install --local --install-dir %{buildroot}/%{gemdir} --force %{SOURCE11}
+gem install --local --install-dir %{buildroot}/%{geminstdir} --force %{SOURCE11}
 cd -
 
 cat <<EOM > %{buildroot}%{_bindir}/simp
 #!/bin/bash
 
 PATH=/opt/puppetlabs/bin:/opt/puppetlabs/puppet/bin:\$PATH
+export GEM_PATH=%{geminstdir}:\$GEM_PATH
 
 %{geminstdir}/bin/simp \$@
 
@@ -113,17 +115,17 @@ EOM
 %{geminstdir}
 %attr(0755,-,-) %{geminstdir}/bin/simp
 %attr(0755,-,-) %{_bindir}/simp
-%exclude %{gemdir}/cache/%{gemname}-%{cli_version}.gem
-%{gemdir}/specifications/%{gemname}-%{cli_version}.gemspec
+%exclude %{geminstdir}/cache/%{gemname}-%{cli_version}.gem
+%{geminstdir}/specifications/%{gemname}-%{cli_version}.gemspec
 
 %files highline
 %defattr(0644, root, root, 0755)
-%{gemdir}/gems/highline-%{highline_version}
-%exclude %{gemdir}/cache/highline-%{highline_version}.gem
-%{gemdir}/specifications/highline-%{highline_version}.gemspec
+%{geminstdir}/gems/highline-%{highline_version}
+%exclude %{geminstdir}/cache/highline-%{highline_version}.gem
+%{geminstdir}/specifications/highline-%{highline_version}.gemspec
 
 %files doc
-%doc %{gemdir}/doc
+%doc %{geminstdir}/doc
 
 %changelog
 * Fri Apr 26 2019 Liz Nemsick <lnemsick.simp@gmail.com> - 5.0.0
