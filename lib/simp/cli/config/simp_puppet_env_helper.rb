@@ -2,12 +2,20 @@ require 'simp/cli/defaults'
 #require 'simp/cli/environment/omni_env_controller'
 require 'simp/cli/utils'
 
+#>>>> TEMPORARY >>>>
+require 'simp/cli/logging'
+#<<<<<<<<<<<<<<<<<<<
+
+
 module Simp; end
 class Simp::Cli; end
 module Simp::Cli::Config; end
 
 # Class to encapsulate the nuances unique to a SIMP Puppet environment
 class Simp::Cli::Config::SimpPuppetEnvHelper
+#>>>> TEMPORARY >>>>
+  include Simp::Cli::Logging
+#<<<<<<<<<<<<<<<<<<<
 
   def initialize(env_name)
     @env_name = env_name
@@ -47,15 +55,29 @@ class Simp::Cli::Config::SimpPuppetEnvHelper
  #    omni_controller = Simp::Cli::Environment::OmniEnvController.new(omni_options, @env_name)
  #    omni_controller.create
  #
-    # Temporarily, use simpenv script to create the SIMP Omni environment.
+#>>>> TEMPORARY >>>>
+    # Use simpenv script and r10K to create the SIMP Omni environment.
+
     # We only get here if the Puppet environment does not exist or has
     # no modules and the Secondary environment does not exist.  Since
     # simpenv will fail with an empty but existing Puppet environment,
     # be sure to remove it first.
     FileUtils.rm_rf(env_info[:puppet_env_dir])
-    console = %x{/usr/local/sbin/simpenv -n #{@env_name} 2>&1}
-#FIXME add logger and debug log?
-#puts console
+
+    result = run_command("/usr/local/sbin/simpenv -n #{@env_name}")
+    if result[:status]
+      # install the puppet modules using r10k
+      Dir.chdir(env_info[:puppet_env_dir]) do
+        r10k_command = [
+          '/usr/share/simp/bin/r10k puppetfile install',
+          "--puppetfile #{env_info[:puppet_env_dir]}/Puppetfile",
+          "--moduledir #{env_info[:puppet_env_dir]}/modules"
+        ].join(' ')
+        command = "umask 0027; sg puppet -c '#{r10k_command}'"
+        run_command(command)
+      end
+    end
+#<<<<<<<<<<<<<<<<<<<
 
     # update @env_info to reflect the actual Puppet environment, as some
     # configuration may have changed (e.g., module path)
@@ -254,6 +276,54 @@ private
   def get_system_puppet_info
     Simp::Cli::Utils::PuppetInfo.new(@env_name).system_puppet_info
   end
+
+#>>>> TEMPORARY >>>>
+# copied from Simp::Cli::Config::Item
+  def run_command(command, ignore_failure = false)
+    debug( "Executing: #{command}" )
+    # We noticed inconsistent behavior when spawning commands
+    # with pipes, particularly a pipe to 'xargs'. Rejecting pipes
+    # for now, but we may need to re-evaluate in the future.
+    raise InvalidSpawnError.new(command) if command.include? '|'
+    out_pipe_r, out_pipe_w = IO.pipe
+    err_pipe_r, err_pipe_w = IO.pipe
+    pid = spawn(command, :out => out_pipe_w, :err => err_pipe_w)
+    out_pipe_w.close
+    err_pipe_w.close
+
+    Process.wait(pid)
+    exitstatus = $?.nil? ? nil : $?.exitstatus
+    stdout = out_pipe_r.read
+    out_pipe_r.close
+    stderr = err_pipe_r.read
+    err_pipe_r.close
+
+    return {:status => true, :stdout => stdout, :stderr => stderr} if ignore_failure
+
+    if exitstatus == 0
+      return {:status => true, :stdout => stdout, :stderr => stderr}
+    else
+      error( "\n[#{command}] failed with exit status #{exitstatus}:", [:RED] )
+      stderr.split("\n").each do |line|
+        error( ' '*2 + line, [:RED] )
+      end
+      return {:status => false, :stdout => stdout, :stderr => stderr}
+    end
+  end
+
+  def debug(*args)
+    logger.debug(*args)
+  end
+
+  def info(*args)
+    logger.info(*args)
+  end
+
+  def warn(*args)
+    logger.warn(*args)
+  end
+
+#<<<<<<<<<<<<<<<<<<<
 
 end
 
