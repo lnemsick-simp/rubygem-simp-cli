@@ -46,6 +46,16 @@ class Simp::Cli::Config::SimpPuppetEnvHelper
      }
  #    omni_controller = Simp::Cli::Environment::OmniEnvController.new(omni_options, @env_name)
  #    omni_controller.create
+ #
+    # Temporarily, use simpenv script to create the SIMP Omni environment.
+    # We only get here if the Puppet environment does not exist or has
+    # no modules and the Secondary environment does not exist.  Since
+    # simpenv will fail with an empty but existing Puppet environment,
+    # be sure to remove it first.
+    FileUtils.rm_rf(env_info[:puppet_env_dir])
+    console = %x{/usr/local/sbin/simpenv -n #{@env_name} 2>&1}
+#FIXME add logger and debug log?
+#puts console
 
     # update @env_info to reflect the actual Puppet environment, as some
     # configuration may have changed (e.g., module path)
