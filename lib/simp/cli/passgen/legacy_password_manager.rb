@@ -33,23 +33,20 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     validate_names(names)
 
     names.each do |name|
-      password_filename = "#{@password_dir}/#{name}"
-      if File.exists?(password_filename)
-        remove = force_remove
-        unless remove
-          remove = yes_or_no("Are you sure you want to remove all entries for #{name}?", false)
-        end
-        if remove
-          [
-            password_filename,
-            password_filename + '.salt',
-            password_filename + '.last',
-            password_filename + '.salt.last',
-          ].each do |file|
-            if File.exist?(file)
-              File.unlink(file)
-              puts "#{file} deleted"
-            end
+      remove = force_remove
+      unless remove
+        remove = yes_or_no("Are you sure you want to remove all entries for #{name}?", false)
+      end
+      if remove
+        [
+          password_filename,
+          password_filename + '.salt',
+          password_filename + '.last',
+          password_filename + '.salt.last',
+        ].each do |file|
+          if File.exist?(file)
+            File.unlink(file)
+            puts "#{file} deleted"
           end
         end
       end
@@ -65,13 +62,13 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #
   # @param names Array of names of passwords to set
   #
-  def set_passwords(names)
+  def set_passwords(names, options)
     names.each do |name|
       next if name.strip.empty?
       password_filename = "#{@password_dir}/#{name}"
 
       puts "#{@environment} Name: #{name}"
-      password = get_password
+      password = get_password(options)
       backup_password_files(password_filename) if File.exists?(password_filename)
 
       begin
@@ -152,13 +149,23 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     names.sort
   end
 
-  def get_password(allow_autogenerate = true, attempts = 5)
+  #FIXME need to pass in options hash
+  #   @password_gen_options = {
+     :auto_gen => DEFAULT_AUTO_GEN_PASSWORDS
+# FIXME: Do we need the next 3?
+#    :length = nil
+#    :complexity = nil
+#    :complex_only = nil
+    }
+
+  def get_password(options, attempts = 5)
     if (attempts == 0)
       raise Simp::Cli::ProcessingError.new('FATAL: Too may failed attempts to enter password')
     end
 
     password = ''
-    if allow_autogenerate and yes_or_no('Do you want to autogenerate the password?', true )
+#FIXME This logic is wrong, especially with recursion
+    if options[:auto_gen] || yes_or_no('Do you want to autogenerate the password?', true )
 #FIXME need to use simplib::gen_random_password to generate new password and salt
       password = Simp::Cli::Utils.generate_password
       puts "  Password set to '#{password}'"
@@ -182,7 +189,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         $stderr.puts '  Passwords do not match! Please try again.'.red.bold
 
         # start all over, skipping the autogenerate question
-        password = get_password(false, attempts - 1)
+        password = get_password(options, attempts - 1)
       end
     end
     password
@@ -198,7 +205,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     names.each do |name|
       unless actual_names.include?(name)
         #FIXME print out names nicely (e.g., max 8 per line)
-        raise OptionParser::ParseError.new("Invalid name '#{name}' selected.\n\nValid names: #{names.join(', ')}")
+        err_msg = "Invalid name '#{name}' selected.\n\nValid names: #{actual_names.join(', ')}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
       end
     end
   end

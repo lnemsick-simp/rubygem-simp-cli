@@ -6,8 +6,11 @@ require 'highline/import'
 class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   require 'fileutils'
 
-  DEFAULT_ENVIRONMENT = 'production'
+  DEFAULT_ENVIRONMENT        = 'production'
   DEFAULT_AUTO_GEN_PASSWORDS = false
+
+  # First simplib version in which simplib::passgen could use libkv
+  LIBKV_SIMPLIB_VERSION = '4.0.0'
 
   def initialize
     @operation = nil
@@ -44,25 +47,35 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
     @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
 
-    valid_environments = find_valid_environments
-    unless valid_environments.include?(@environment)
+    valid_env_info = find_valid_environments
+    unless valid_env_info.keys.include?(@environment)
       err_msg = "Invalid Puppet environment '#{@environment}':\n" +
         "  Cannot have simplib::passgen passwords since 'simp-simplib' is not installed."
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
     manager = nil
-    if legacy_passgen?
+    if legacy_passgen?(valid_env_info[@environment])
+      # This environment does not have Puppet functions to manage
+      # simplib::passgen passwords. Fallback to how these passwords were
+      # managed, before.
+      # TODO See if we can use functions from another environment that does
+      # have the passgen-managing functions?  The simplib::passgen::legacy
+      # functions would have to be reworked to allow overriding the environment.
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
         @password_dir)
     else
+      # This environment has Puppet functions to manage simplib::passgen
+      # passwords, whether they are stored in the legacy directory for the
+      # environment or in a key/value store via libkv.  The functions figure
+      # out where the passwords are stored and executes appropriate logic.
       manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
         @backend, @folder)
     end
 
     case @operation
     when :show_environment_list
-      show_environment_list(valid_environments)
+      show_environment_list(valid_env_info.keys)
     when :show_name_list
       manager.show_name_list
     when :show_passwords
@@ -78,7 +91,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # Custom methods
   #####################################################
 
-  # @returns Array Puppet environments in which simp-simplib has been installed
+  # @returns Hash Puppet environments in which simp-simplib has been installed
+  #   - key is the environment name
+  #   - value is the version of simp-simplib
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
   def find_valid_environments
     # grab the environments path from the production env puppet master config
@@ -87,28 +102,31 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     environments.map! { |env| File.basename(env) }
 
     # only keep environments that have simplib installed
-    environments.delete_if do |env|
+    env_info = {}
+    environments.each do |env|
       command = "puppet module list --environment #{env}"
       result = Simp::Cli::ExecUtils.run_command(command)
 
       if result[:status]
-        result[:stdout].match(/ simp\-simplib /).nil?
+        # The `.*?` flanking the version string are for color encoding chars
+        regex = /\s+simp-simplib\s+\(.*?v([0-9]+\.[0-9]+\.[0-9]+).*?\)/m
+        match = result[:stdout].match(regex)
+        unless match.nil?
+          env_info[env] = match[1] # version of simp-simplib
+        end
       else
         err_message = "#{command} failed: #{result[:stderr]}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     end
 
-    environments.sort
+    env_info
   end
 
-  # check which version of passgen is being used by the environment
-  # and return true if the version of simp-simplib < 4.0.0
-  def legacy_passgen?
-# - Examine simplib version of the environment selected
-#    YES: puppet module list --tree | grep simplib
-#    │ └─┬ simp-simplib (v3.17.0)
-    true
+  # @returns whether the environment has an old version of simplib
+  #   that does not provide password-managing Puppet functions
+  def legacy_passgen?(env_simplib_version)
+    env_simplib_version.split('.')[0] < LIBKV_SIMPLIB_VERSION.split('.')[0]
   end
 
   def parse_command_line(args)
@@ -204,7 +222,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       end
 
       opts.on('-e', '--env ENV',
-            'Puppet environment to which the passgen operation will',
+            'Puppet environment to which the passgen operation will',/\s+simp-simplib\s+\(v([0-9]+)\.[0-9]+\.[0-9]\)/
             "be applied. Defaults to '#{DEFAULT_ENVIRONMENT}'.") do |env|
         @environment = env
       end
@@ -270,11 +288,11 @@ require 'simp/cli/utils'
 
   # Prints to the console the list of Puppet environments for which
   # simp-simplib is installed
-  def show_environment_list(envs_with_simplib)
-    if envs_with_simplib.empty?
-      puts 'No environments with simp-simplib installed found'
+  def show_environment_list(valid_envs))
+    if valid_envs.empty?
+      puts 'No environments with simp-simplib installed found.'
     else
-      puts "Environments:\n\t#{envs_with_simplib.join("\n\t")}"
+      puts "Environments:\n  #{valid_envs.sort.join("\n  ")}"
     end
     puts
   end
