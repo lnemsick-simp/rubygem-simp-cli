@@ -159,6 +159,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
     password = ''
     if allow_autogenerate and yes_or_no('Do you want to autogenerate the password?', true )
+#FIXME need to use simplib::gen_random_password to generate new password and salt
       password = Simp::Cli::Utils.generate_password
       puts "  Password set to '#{password}'"
     else
