@@ -8,6 +8,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
   DEFAULT_ENVIRONMENT        = 'production'
   DEFAULT_AUTO_GEN_PASSWORDS = false
+  DEFAULT_PASSWORD_LENGTH    = 32
+  MINIMUM_PASSWORD_LENGTH    = 8
 
   # First simplib version in which simplib::passgen could use libkv
   LIBKV_SIMPLIB_VERSION = '4.0.0'
@@ -20,9 +22,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     @password_dir = nil  # fully qualified path to legacy passgen dir
     @names = Array.new
     @password_gen_options = {
-     :auto_gen => DEFAULT_AUTO_GEN_PASSWORDS
-# FIXME: Do we need the next 3?
-#    :length = nil
+     :auto_gen       => DEFAULT_AUTO_GEN_PASSWORDS,
+     :force_value    => false,  # whether to validate passwords from user
+     :length         => nil,
+     :default_length => DEFAULT_PASSWORD_LENGTH,
+     :minimum_length => MINIMUM_PASSWORD_LENGTH
+# FIXME: Do we need the next 2?
 #    :complexity = nil
 #    :complex_only = nil
     }
@@ -104,12 +109,11 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     # only keep environments that have simplib installed
     env_info = {}
     environments.each do |env|
-      command = "puppet module list --environment #{env}"
+      command = "puppet module list --color=false --environment=#{env}"
       result = Simp::Cli::ExecUtils.run_command(command)
 
       if result[:status]
-        # The `.*?` flanking the version string are for color encoding chars
-        regex = /\s+simp-simplib\s+\(.*?v([0-9]+\.[0-9]+\.[0-9]+).*?\)/m
+        regex = /\s+simp-simplib\s+\(v([0-9]+\.[0-9]+\.[0-9]+)\)/m
         match = result[:stdout].match(regex)
         unless match.nil?
           env_info[env] = match[1] # version of simp-simplib
@@ -208,33 +212,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator 'COMMAND MODIFIERS:'
       opts.separator ''
 
-      opts.on('--backend BACKEND',
-            'Specific libkv backend to query for the specified environment.',
-            'Defaults to the default backend for simplib::passgen.',
-            'Only needed for passwords from simplib::passgen calls with custom libkv settings.'.) do |backend|
-        @backend = backend
-      end
-
-      opts.on('-d', '--dir DIR',
-            'Fully qualified path to a legacy password store.',
-            "Overrides an environment specified by the '-e' option.") do |dir|
-        @password_dir = dir
-      end
-
-      opts.on('-e', '--env ENV',
-            'Puppet environment to which the passgen operation will',/\s+simp-simplib\s+\(v([0-9]+)\.[0-9]+\.[0-9]\)/
-            "be applied. Defaults to '#{DEFAULT_ENVIRONMENT}'.") do |env|
-        @environment = env
-      end
-
-      opts.on('--folder FOLDER',
-        '(Sub-)folder in which to find password names in a libkv key/value store.',
-        "For simplib::passgen('app1/admin'), the folder",
-        "would be 'app1' and the name would be 'admin'.",
-        'Defaults to the top-level folder for passgen.'  ) do |folder|
-        @folder = folder
-      end
-
       opts.on('--[no-]auto-generate', Boolean,
             'Whether to auto-generate new passwords.',
             'When false the user will be prompted to enter new passwords.',
@@ -245,7 +222,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.on('--complexity', Integer,
             'Password complexity to use when auto-generated.',
             'For existing passwords stored a libkv key/value store, defaults to the current password complexity.',
-#DEFAULTrequire 'simp/cli/exec_utils'
+#DEFAULT
 require 'simp/cli/utils'
 
             "Otherwise, defaults to '0'.",
@@ -262,18 +239,52 @@ require 'simp/cli/utils'
         @password_gen_options[:complex_only] = complex_only
       end
 
-      opts.on('--length', Integer,
-            'Password length to use when auto-generated.',
-#FIXME when no current password...
-            'Defaults to the current password length.') do |length|
-        @password_gen_options[:length] = length
+
+      opts.on('--backend BACKEND',
+            'Specific libkv backend to query for the specified environment.',
+            'Defaults to the default backend for simplib::passgen.',
+            'Only needed for passwords from simplib::passgen calls with custom libkv settings.'.) do |backend|
+        @backend = backend
       end
 
-      opts.on('-f', '--force-remove',
+      opts.on('-d', '--dir DIR',
+            'Fully qualified path to a legacy password store.',
+            "Overrides an environment specified by the '-e' option.") do |dir|
+        @password_dir = dir
+      end
+
+      opts.on('-e', '--env ENV',
+            'Puppet environment to which the passgen operation will',
+            "be applied. Defaults to '#{DEFAULT_ENVIRONMENT}'.") do |env|
+        @environment = env
+      end
+
+      opts.on('--folder FOLDER',
+        '(Sub-)folder in which to find password names in a libkv key/value store.',
+        "For simplib::passgen('app1/admin'), the folder",
+        "would be 'app1' and the name would be 'admin'.",
+        'Defaults to the top-level folder for passgen.'  ) do |folder|
+        @folder = folder
+      end
+
+      opts.on('--force-remove',
             'Remove passwords without prompting user to confirm.',
             'If unspecified, user will be prompted to confirm the',
             'removal action.') do |force_remove|
         @force_remove = force_remove
+      end
+
+      opts.on('--force-value',
+            'Disable validation of user-entered passwords.') do |force_value|
+        @password_gen_options[:force_value] = force_value
+      end
+
+      opts.on('--length', Integer,
+            'Password length to use when auto-generated.',
+            'Defaults to the current password length, when present',
+            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}".'
+            "Otherwise, defaults to '#{DEFAULT_PASSWORD_LENGTH}'.",) do |length|
+        @password_gen_options[:length] = length
       end
     end
 

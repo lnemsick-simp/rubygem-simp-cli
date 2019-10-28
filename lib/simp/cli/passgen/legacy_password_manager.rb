@@ -1,4 +1,6 @@
 require 'highline/import'
+require 'simp/cli/passgen/utils'
+require 'simp/cli/utils'
 
 # Class that provides legacy `simp passgen` operations for environments having
 # old simplib module versions that do not support password management beyond
@@ -9,6 +11,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
   def initialize(environment, password_dir = nil)
     @environment = environment
+    @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
     if password_dir.nil?
       @password_dir = get_password_dir
     else
@@ -35,7 +38,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     names.each do |name|
       remove = force_remove
       unless remove
-        remove = yes_or_no("Are you sure you want to remove all entries for #{name}?", false)
+        prompt = "Are you sure you want to remove all entries for #{name}?"
+        remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
       if remove
         [
@@ -68,15 +72,18 @@ class Simp::Cli::Passgen::LegacyPasswordManager
       password_filename = "#{@password_dir}/#{name}"
 
       puts "#{@environment} Name: #{name}"
-      password = get_password(options)
+      if options[:length].nil?
+        options[:length] = get_password_length(password_file, options)
+      end
+      password = get_new_password(options)
       backup_password_files(password_filename) if File.exists?(password_filename)
 
       begin
         File.open(password_filename, 'w') { |file| file.puts password }
 
         # Ensure that the ownership and permissions are correct
-        puppet_user = `puppet config print user 2>/dev/null`.strip
-        puppet_group = `puppet config print group 2>/dev/null`.strip
+        puppet_user = @puppet_info[:config]['user']
+        puppet_group = @puppet_info[:config]['group']
         if puppet_user.empty? or puppet_group.empty?
           err_msg = 'Could not set password file ownership:  unable to determine puppet user and group'
           raise Simp::Cli::ProcessingError.new(err_msg)
@@ -133,6 +140,18 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #########################################################
   # Helpers
   #########################################################
+  def backup_password_files(password_filename)
+    begin
+      FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
+      salt_filename = password_filename + '.salt'
+      if File.exists?(salt_filename)
+        FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
+      end
+    rescue SystemCallError => err
+      err_msg = "Error occurred while backing up '#{password_filename}' files: #{err}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
 
   def get_names
     names = []
@@ -149,55 +168,38 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     names.sort
   end
 
-  #FIXME need to pass in options hash
-  #   @password_gen_options = {
-     :auto_gen => DEFAULT_AUTO_GEN_PASSWORDS
-# FIXME: Do we need the next 3?
-#    :length = nil
-#    :complexity = nil
-#    :complex_only = nil
-    }
-
-  def get_password(options, attempts = 5)
-    if (attempts == 0)
-      raise Simp::Cli::ProcessingError.new('FATAL: Too may failed attempts to enter password')
-    end
-
+  def get_new_password(options)
     password = ''
-#FIXME This logic is wrong, especially with recursion
-    if options[:auto_gen] || yes_or_no('Do you want to autogenerate the password?', true )
-#FIXME need to use simplib::gen_random_password to generate new password and salt
-      password = Simp::Cli::Utils.generate_password
+    prompt = 'Do you want to autogenerate the password?'
+    if options[:auto_gen] || Simp::Cli::Passgen::Utils::yes_or_no(prompt, true)
+      password = Simp::Cli::Utils.generate_password(option[:length])
       puts "  Password set to '#{password}'"
     else
-      question1 = "> #{'Enter password'.bold}: "
-      password = ask(question1) do |q|
-        q.echo = '*'
-        q.validate = lambda { |answer| validate_password(answer) }
-        q.responses[:not_valid] = nil
-        q.responses[:ask_on_error] = :question
-        q
-      end
-
-      question2 = "> #{'Confirm password'.bold}: "
-      confirm_password = ask(question2) do |q|
-        q.echo = '*'
-        q
-      end
-
-      if password != confirm_password
-        $stderr.puts '  Passwords do not match! Please try again.'.red.bold
-
-        # start all over, skipping the autogenerate question
-        password = get_password(options, attempts - 1)
-      end
+      password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
     end
     password
   end
 
   def get_password_dir
-    password_env_dir = File.join(`puppet config print vardir --section master 2>/dev/null`.strip, 'simp', 'environments')
+    password_env_dir = File.join(@puppet_info[:config]['vardir'], 'simp', 'environments')
     File.join(password_env_dir, @environment, 'simp_autofiles', 'gen_passwd')
+  end
+
+  def get_password_length(password_file, options)
+    length =nil
+    if File.exist?(password_file)
+      begin
+        current_password = File.open(password_file, 'r').gets.chomp
+        if current_password.length >= options[:minimum_length]
+          length = current_password.length
+        end
+      rescue Exception => e
+        err_msg = "Error occurred while reading '#{password_filename}': #{e}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+    end
+    length = options[:default_length] if length.nil?
+    length
   end
 
   def validate_names(names)
@@ -208,16 +210,6 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         err_msg = "Invalid name '#{name}' selected.\n\nValid names: #{actual_names.join(', ')}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
-    end
-  end
-
-  def validate_password(password)
-    begin
-      Simp::Cli::Utils::validate_password(password)
-      return true
-    rescue Simp::Cli::PasswordError => e
-      $stderr.puts "  #{e.message}.".red.bold
-      return false
     end
   end
 
@@ -233,30 +225,4 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
   end
 
-
-  def backup_password_files(password_filename)
-    begin
-      FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
-      salt_filename = password_filename + '.salt'
-      if File.exists?(salt_filename)
-        FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
-      end
-    rescue SystemCallError => err
-      err_msg = "Error occurred while backing up '#{password_filename}' files: #{err}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-  end
-
-
-  def yes_or_no(prompt, default_yes)
-    question = "> #{prompt.bold}: "
-    answer = ask(question) do |q|
-      q.validate = /^y$|^n$|^yes$|^no$/i
-      q.default = (default_yes ? 'yes' : 'no')
-      q.responses[:not_valid] = "Invalid response. Please enter 'yes' or 'no'".red
-      q.responses[:ask_on_error] = :question
-      q
-    end
-    result = (answer.downcase[0] == 'y')
-  end
 end
