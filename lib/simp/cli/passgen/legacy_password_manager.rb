@@ -34,7 +34,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # @param force_remove Whether to remove password files without prompting
   #   the user to verify the removal operation
   #
-  def remove_passwords(names, force_remove)
+  def remove_passwords(names, force_remove=false)
     validate_password_dir
     validate_names(names)
 
@@ -44,20 +44,33 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         prompt = "Are you sure you want to remove all entries for #{name}?"
         remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
+
+      errors = []
       if remove
         [
-          password_filename,
-          password_filename + '.salt',
-          password_filename + '.last',
-          password_filename + '.salt.last',
+          File.join(@password_dir, name),
+          File.join(@password_dir, "#{name}.salt"),
+          File.join(@password_dir, "#{name}.last"),
+          File.join(@password_dir, "#{name}.salt.last")
         ].each do |file|
           if File.exist?(file)
-            File.unlink(file)
-            puts "#{file} deleted"
+            begin
+              File.unlink(file)
+              puts "#{file} deleted"
+            rescue Exception => e
+              # Skip this name for now. Will report all problems at end.
+              errors << "'#{file}: #{e}"
+            end
           end
         end
       end
+
       puts
+      unless errors.empty?
+        puts
+        $stderr.puts "Failed to delete the following password files:\n"
+        $stderr.puts "  #{errors.join("  \n")}"
+      end
     end
   end
 

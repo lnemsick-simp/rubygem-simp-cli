@@ -54,6 +54,162 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
 
   # Operations
   describe '#remove_passwords' do
+    before :each do
+      FileUtils.mkdir_p(@password_dir)
+      names_with_backup = ['production_name1', 'production_name3']
+      names_without_backup = ['production_name2']
+      create_password_files(@password_dir, names_with_backup, names_without_backup)
+
+      @name1_file = File.join(@password_dir, 'production_name1')
+      @name1_salt_file = File.join(@password_dir, 'production_name1.salt')
+      @name1_backup_file = File.join(@password_dir, 'production_name1.last')
+      @name1_backup_salt_file = File.join(@password_dir, 'production_name1.salt.last')
+
+      @name2_file = File.join(@password_dir, 'production_name2')
+      @name2_salt_file = File.join(@password_dir, 'production_name2.salt')
+
+      @name3_file = File.join(@password_dir, 'production_name3')
+      @name3_salt_file = File.join(@password_dir, 'production_name3.salt')
+      @name3_backup_file = File.join(@password_dir, 'production_name3.last')
+      @name3_backup_salt_file = File.join(@password_dir, 'production_name3.salt.last')
+    end
+
+    it 'removes password, backup, and salt files for specified environment when prompt returns yes' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+      expected_output = <<-EOM
+#{@name1_file} deleted
+#{@name1_salt_file} deleted
+#{@name1_backup_file} deleted
+#{@name1_backup_salt_file} deleted
+
+#{@name2_file} deleted
+#{@name2_salt_file} deleted
+
+      EOM
+
+      names = ['production_name1', 'production_name2']
+      expect { @manager.remove_passwords(names) }.to \
+        output(expected_output).to_stdout
+
+      expect(File.exist?(@name1_file)).to eq false
+      expect(File.exist?(@name1_salt_file)).to eq false
+      expect(File.exist?(@name1_backup_file)).to eq false
+      expect(File.exist?(@name1_backup_salt_file)).to eq false
+      expect(File.exist?(@name2_file)).to eq false
+      expect(File.exist?(@name2_salt_file)).to eq false
+      expect(File.exist?(@name3_file)).to eq true
+      expect(File.exist?(@name3_salt_file)).to eq true
+      expect(File.exist?(@name3_backup_file)).to eq true
+      expect(File.exist?(@name3_backup_salt_file)).to eq true
+    end
+
+    it 'does not remove password, backup and salt files for specified environment when prompt returns no' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(false)
+      # not mocking query output
+      expected_output = "\n\n"
+      names = ['production_name1', 'production_name2']
+      expect { @manager.remove_passwords(names) }.to \
+        output(expected_output).to_stdout
+
+      expect(File.exist?(@name1_file)).to eq true
+      expect(File.exist?(@name1_salt_file)).to eq true
+      expect(File.exist?(@name1_backup_file)).to eq true
+      expect(File.exist?(@name1_backup_salt_file)).to eq true
+      expect(File.exist?(@name2_file)).to eq true
+      expect(File.exist?(@name2_salt_file)).to eq true
+      expect(File.exist?(@name3_file)).to eq true
+      expect(File.exist?(@name3_salt_file)).to eq true
+      expect(File.exist?(@name3_backup_file)).to eq true
+      expect(File.exist?(@name3_backup_salt_file)).to eq true
+    end
+
+    it 'removes password, backup, and salt files for specified environment when force_remove=true' do
+     expected_output = <<-EOM
+#{@name1_file} deleted
+#{@name1_salt_file} deleted
+#{@name1_backup_file} deleted
+#{@name1_backup_salt_file} deleted
+
+#{@name2_file} deleted
+#{@name2_salt_file} deleted
+
+      EOM
+
+      names = ['production_name1', 'production_name2']
+      expect { @manager.remove_passwords(names, true) }.to \
+        output(expected_output).to_stdout
+
+      expect(File.exist?(@name1_file)).to eq false
+      expect(File.exist?(@name1_salt_file)).to eq false
+      expect(File.exist?(@name1_backup_file)).to eq false
+      expect(File.exist?(@name1_backup_salt_file)).to eq false
+      expect(File.exist?(@name2_file)).to eq false
+      expect(File.exist?(@name2_salt_file)).to eq false
+      expect(File.exist?(@name3_file)).to eq true
+      expect(File.exist?(@name3_salt_file)).to eq true
+      expect(File.exist?(@name3_backup_file)).to eq true
+      expect(File.exist?(@name3_backup_salt_file)).to eq true
+    end
+
+    it 'removes password, backup, and salt files for specified password directory when force_remove=true' do
+
+      alt_password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
+      FileUtils.mkdir_p(alt_password_dir)
+      create_password_files(alt_password_dir, ['env1_name4'])
+
+      name4_file = File.join(alt_password_dir, 'env1_name4')
+      name4_salt_file = File.join(alt_password_dir, 'env1_name4.salt')
+      name4_backup_file = File.join(alt_password_dir, 'env1_name4.last')
+      name4_backup_salt_file = File.join(alt_password_dir, 'env1_name4.salt.last')
+
+      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, alt_password_dir)
+
+      expected_output = <<-EOM
+#{name4_file} deleted
+#{name4_salt_file} deleted
+#{name4_backup_file} deleted
+#{name4_backup_salt_file} deleted
+
+      EOM
+
+      expect { manager.remove_passwords(['env1_name4'], true) }.to \
+        output(expected_output).to_stdout
+
+      expect(File.exist?(name4_file)).to eq false
+      expect(File.exist?(name4_salt_file)).to eq false
+      expect(File.exist?(name4_backup_file)).to eq false
+      expect(File.exist?(name4_backup_salt_file)).to eq false
+    end
+
+    it 'fails when no names specified' do
+      expect { @manager.remove_passwords([]) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'No names specified.')
+    end
+
+    it 'fails when invalid names specified' do
+      names = ['production_name1', 'oops', 'production_name2']
+      expect { @manager.remove_passwords(names) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        /Invalid name 'oops' selected.\n\nValid names: production_name1, /)
+    end
+
+    it 'fails when password directory does not exist' do
+      FileUtils.rm_rf(@password_dir)
+      names = ['production_name1', 'production_name2']
+      expect { @manager.remove_passwords(names) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Password directory '#{@password_dir}' does not exist")
+    end
+
+    it 'fails when password directory is not a directory' do
+      FileUtils.rm_rf(@password_dir)
+      FileUtils.touch(@password_dir)
+      names = ['production_name1', 'production_name2']
+      expect { @manager.remove_passwords(names) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Password directory '#{@password_dir}' is not a directory")
+    end
   end
 
   describe '#set_passwords' do
@@ -73,7 +229,7 @@ production Names:
       expect { @manager.show_name_list }.to output(expected_output).to_stdout
     end
 
-    it 'lists available names for the environment' do
+    it 'lists available names for the specified environment' do
       names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
       create_password_files(@password_dir, names)
       expected_output = <<-EOM
@@ -123,11 +279,11 @@ production Names:
       FileUtils.mkdir_p(@password_dir)
     end
 
-    it 'shows current and previous passwords for specified names of default environment' do
+    it 'shows current and previous passwords for specified names of specified environment' do
       names_with_backup = ['production_name1', 'production_name3']
       names_without_backup = ['production_name2']
       create_password_files(@password_dir, names_with_backup, names_without_backup)
-      expected_output = <<EOM
+      expected_output = <<-EOM
 production Environment Passwords
 ================================
 Name: production_name2
@@ -137,7 +293,7 @@ Name: production_name3
   Current:  production_name3_password
   Previous: production_name3_backup_password
 
-EOM
+      EOM
       expect { @manager.show_passwords(['production_name2','production_name3']) }.
         to output(expected_output).to_stdout
     end
@@ -147,14 +303,14 @@ EOM
       FileUtils.mkdir_p(alt_password_dir)
       create_password_files(alt_password_dir, ['env1_name1'])
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, alt_password_dir)
-      expected_output = <<EOM
+      expected_output = <<-EOM
 #{alt_password_dir} Passwords
 #{'='*alt_password_dir.length}==========
 Name: env1_name1
   Current:  env1_name1_password
   Previous: env1_name1_backup_password
 
-EOM
+      EOM
       expect { manager.show_passwords(['env1_name1']) }.
         to output(expected_output).to_stdout
     end
@@ -248,10 +404,10 @@ EOM
       @input.rewind
       expect( @manager.get_password(false) ).to eq password1
 
-      expected = <<EOM
+      expected = <<-EOM
 > Enter password: ********************
 > Confirm password: ********************
-EOM
+      EOM
       expect( @output.string.uncolor ).to_not match /Do you want to autogenerate/
     end
 
@@ -262,10 +418,10 @@ EOM
       @input.rewind
       expect( @manager.get_password ).to eq password1
 
-      expected = <<EOM
+      expected = <<-EOM
 > Do you want to autogenerate the password?: |yes| > Enter password: ********************
 > Confirm password: ********************
-EOM
+      EOM
       expect(@output.string.uncolor).to eq expected
     end
 
@@ -276,11 +432,11 @@ EOM
       @input.rewind
       expect( @manager.get_password(false) ).to eq password1
 
-      expected = <<EOM
+      expected = <<-EOM
 > Enter password: *****
 > Enter password: ********************
 > Confirm password: ********************
-EOM
+      EOM
       expect(@output.string.uncolor).to eq expected
     end
 
@@ -292,12 +448,12 @@ EOM
       @input.rewind
       expect( @manager.get_password(false) ).to eq password1
 
-      expected = <<EOM
+      expected = <<-EOM
 > Enter password: ********************
 > Confirm password: ***********
 > Enter password: ********************
 > Confirm password: ********************
-EOM
+      EOM
       expect(@output.string.uncolor).to eq expected
     end
 
@@ -319,23 +475,10 @@ EOM
 
   end
 
-  describe '#get_password_dir' do
-  end
-
   describe '#get_password_length' do
   end
 
-  describe '#validate_names' do
-  end
-
-  describe '#validate_password_dir' do
-  end
-
   describe '#run' do
-    describe '--name option' do
-
-    end
-
     describe '--set option' do
       before :each do
         @password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
@@ -356,17 +499,17 @@ EOM
         @name3_backup_file = File.join(@password_dir, 'production_name3.last')
         File.open(@name3_backup_file, 'w') { |file| file.puts "production_name3_backup_password" }
 
-        @env1_password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@env1_password_dir)
-        @name4_file = File.join(@env1_password_dir, 'env1_name4')
+        @alt_password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
+        FileUtils.mkdir_p(@alt_password_dir)
+        @name4_file = File.join(@alt_password_dir, 'env1_name4')
         File.open(@name4_file, 'w') { |file| file.puts "env1_name4_password" }
-        @name4_salt_file = File.join(@env1_password_dir, 'env1_name4.salt')
+        @name4_salt_file = File.join(@alt_password_dir, 'env1_name4.salt')
         File.open(@name4_salt_file, 'w') { |file| file.puts "env1_name4_salt" }
-        @name4_backup_file = File.join(@env1_password_dir, 'env1_name4.last')
+        @name4_backup_file = File.join(@alt_password_dir, 'env1_name4.last')
         File.open(@name4_backup_file, 'w') { |file| file.puts "env1_name4_backup_password" }
       end
 
-      context 'with default environment' do
+      context 'for specified environment' do
         context 'with backups' do
           let(:expected_file_info) do {
               @name1_file                => 'first_new_password',
@@ -483,7 +626,7 @@ EOM
        end
       end
 
-      context 'specified environment' do
+      context 'for specified password directory' do
         context 'with backups' do
           let(:expected_file_info) do {
               @name4_file                => 'new_password',
@@ -563,7 +706,7 @@ env1 Name: new_name
 EOM
           expect { @manager.run(['-e', 'env1', '--backup', '-s', 'new_name']) }.to output(
             expected_output).to_stdout
-          new_password_file = File.join(@env1_password_dir, 'new_name')
+          new_password_file = File.join(@alt_password_dir, 'new_name')
           expect( File.exist?(new_password_file) ).to eq true
           expect( File.stat(new_password_file).mode & 0777 ).to eq 0640
           expect( File.exist?(new_password_file + '.last') ).to eq false
@@ -591,176 +734,6 @@ EOM
       end
     end
 
-    describe '--remove option' do
-      before :each do
-        @password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@password_dir)
-
-        @name1_file = File.join(@password_dir, 'production_name1')
-        File.open(@name1_file, 'w') { |file| file.puts 'production_name1_password' }
-        @name1_salt_file = File.join(@password_dir, 'production_name1.salt')
-        File.open(@name1_salt_file, 'w') { |file| file.puts 'production_name1_salt' }
-        @name1_backup_file = File.join(@password_dir, 'production_name1.last')
-        File.open(@name1_backup_file, 'w') { |file| file.puts 'production_name1_backup_password' }
-
-        @name2_file = File.join(@password_dir, 'production_name2')
-        File.open(@name2_file, 'w') { |file| file.puts 'production_name2_password' }
-
-        @name3_file = File.join(@password_dir, 'production_name3')
-        File.open(@name3_file, 'w') { |file| file.puts 'production_name3_password' }
-        @name3_backup_file = File.join(@password_dir, 'production_name3.last')
-        File.open(@name3_backup_file, 'w') { |file| file.puts 'production_name3_backup_password' }
-
-        @env1_password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@env1_password_dir)
-        @name4_file = File.join(@env1_password_dir, 'env1_name4')
-        File.open(@name4_file, 'w') { |file| file.puts 'env1_name4_password' }
-        @name4_salt_file = File.join(@env1_password_dir, 'env1_name4.salt')
-        File.open(@name4_salt_file, 'w') { |file| file.puts 'env1_name4_salt' }
-        @name4_backup_file = File.join(@env1_password_dir, 'env1_name4.last')
-        File.open(@name4_backup_file, 'w') { |file| file.puts 'env1_name4_backup_password' }
-      end
-
-      context 'with default environment' do
-        it 'removes password, backup, and salt files when prompt returns yes' do
-          allow(@manager).to receive(:yes_or_no).and_return(true)
-          # not mocking query output
-          expected_output = <<EOM
-#{@name1_file} deleted
-#{@name1_salt_file} deleted
-#{@name1_backup_file} deleted
-
-#{@name2_file} deleted
-
-EOM
-          expect { @manager.run(['-r',
-            'production_name1,production_name2' ]) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name1_file)).to eq false
-          expect(File.exist?(@name1_salt_file)).to eq false
-          expect(File.exist?(@name1_backup_file)).to eq false
-          expect(File.exist?(@name2_file)).to eq false
-          expect(File.exist?(@name3_file)).to eq true
-          expect(File.exist?(@name3_backup_file)).to eq true
-        end
-
-        it 'does not remove password, backup and salt files when prompt returns no' do
-          allow(@manager).to receive(:yes_or_no).and_return(false)
-          # not mocking query output
-          expected_output = "\n\n"
-          expect { @manager.run(['-r',
-            'production_name1,production_name2' ]) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name1_file)).to eq true
-          expect(File.exist?(@name1_salt_file)).to eq true
-          expect(File.exist?(@name1_backup_file)).to eq true
-          expect(File.exist?(@name2_file)).to eq true
-          expect(File.exist?(@name3_file)).to eq true
-          expect(File.exist?(@name3_backup_file)).to eq true
-        end
-
-        it 'removes password, backup, and salt files, without prompting with --force-remove option' do
-          expected_output = <<EOM
-#{@name1_file} deleted
-#{@name1_salt_file} deleted
-#{@name1_backup_file} deleted
-
-#{@name2_file} deleted
-
-EOM
-          expect { @manager.run(['-r', 'production_name1,production_name2',
-            '--force-remove']) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name1_file)).to eq false
-          expect(File.exist?(@name1_salt_file)).to eq false
-          expect(File.exist?(@name1_backup_file)).to eq false
-          expect(File.exist?(@name2_file)).to eq false
-          expect(File.exist?(@name3_file)).to eq true
-          expect(File.exist?(@name3_backup_file)).to eq true
-        end
-      end
-
-      context 'specified environment' do
-        it 'removes password, backup, and salt files, per prompt' do
-          allow(@manager).to receive(:yes_or_no).and_return(true)
-          # not mocking query output
-          expected_output = <<EOM
-#{@name4_file} deleted
-#{@name4_salt_file} deleted
-#{@name4_backup_file} deleted
-
-EOM
-          expect { @manager.run(['-e', 'env1', '-r',
-            'env1_name4']) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name4_file)).to eq false
-          expect(File.exist?(@name4_salt_file)).to eq false
-          expect(File.exist?(@name4_backup_file)).to eq false
-        end
-
-        it 'does not remove password files, including backup files, per prompt' do
-          allow(@manager).to receive(:yes_or_no).and_return(false)
-          # not mocking query output
-          expected_output = "\n"
-          expect { @manager.run(['-e', 'env1', '-r',
-            'env1_name4']) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name4_file)).to eq true
-          expect(File.exist?(@name4_salt_file)).to eq true
-          expect(File.exist?(@name4_backup_file)).to eq true
-        end
-
-        it 'removes password files, including backup files, without prompting with --force-remove option' do
-          expected_output = <<EOM
-#{@name4_file} deleted
-#{@name4_salt_file} deleted
-#{@name4_backup_file} deleted
-
-EOM
-          expect { @manager.run(['-e', 'env1', '-r', 'env1_name4',
-            '--force-remove']) }.to output(expected_output).to_stdout
-
-          expect(File.exist?(@name4_file)).to eq false
-          expect(File.exist?(@name4_salt_file)).to eq false
-          expect(File.exist?(@name4_backup_file)).to eq false
-        end
-      end
-
-      it 'fails when no names specified' do
-        expect { @manager.run(['-r']) }.to raise_error(OptionParser::MissingArgument)
-      end
-
-      it 'fails when invalid names specified' do
-        expect { @manager.run(['-r', 'production_name1,oops,production_name2']) }.to raise_error(
-          OptionParser::ParseError,
-          /Invalid name 'oops' selected.\n\nValid names: production_name1, production_name2/)
-      end
-
-      it 'fails when password directory does not exist' do
-        FileUtils.rm_rf(@password_dir)
-        expect { @manager.run(['-r', 'production_name1']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@password_dir}' does not exist")
-      end
-
-      it 'fails when password directory is not a directory' do
-        FileUtils.rm_rf(@password_dir)
-        FileUtils.touch(@password_dir)
-        expect { @manager.run(['-r', 'production_name1']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@password_dir}' is not a directory")
-      end
-    end
-
-    describe 'option validation' do
-      it 'requires operation option to be specified' do
-        expect { @manager.run([]) }.to raise_error(OptionParser::ParseError,
-          /The SIMP Passgen Tool requires at least one option/)
-
-        expect { @manager.run(['-e', 'production']) }.to raise_error(OptionParser::ParseError,
-          /No password operation specified./)
-      end
-    end
   end
 =end
 end
