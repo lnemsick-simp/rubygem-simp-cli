@@ -118,6 +118,8 @@ module Simp::Cli::Utils
       validate_password(password)
     rescue Simp::Cli::PasswordError
       # password failed validation, so re-generate
+      #FIXME should have a limit in number of attempts or will hang indefinitely
+      # if the length is too small and thus generated password always fails validation
       password = ''
       retry
     end

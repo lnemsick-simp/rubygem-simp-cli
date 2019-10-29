@@ -38,6 +38,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     validate_password_dir
     validate_names(names)
 
+    errors = []
     names.each do |name|
       remove = force_remove
       unless remove
@@ -45,7 +46,6 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
 
-      errors = []
       if remove
         [
           File.join(@password_dir, name),
@@ -56,21 +56,21 @@ class Simp::Cli::Passgen::LegacyPasswordManager
           if File.exist?(file)
             begin
               File.unlink(file)
-              puts "#{file} deleted"
+              puts "Deleted #{file}"
             rescue Exception => e
-              # Skip this name for now. Will report all problems at end.
-              errors << "'#{file}: #{e}"
+              # Will report all problems at end.
+              errors << "'#{file}': #{e}"
             end
           end
         end
       end
 
       puts
-      unless errors.empty?
-        puts
-        $stderr.puts "Failed to delete the following password files:\n"
-        $stderr.puts "  #{errors.join("  \n")}"
-      end
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to delete the following password files:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
@@ -81,42 +81,71 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # simplib::passgen to generate one the next time the catalog is compiled.
   #
   # @param names Array of names of passwords to set
+  # @param options Hash of password generation options.
+  #   * Required keys:
+  #     * :auto_gen - whether to auto-generate new passwords
+  #     * :force_value - whether to accept passwords entered by user without
+  #       validation
+  #     * :default_length - default password length of auto-generated passwords.
+  #     * :minimum_length - minimum password length
+  #
+  #   * Optional keys:
+  #     * :length - requested length of auto-generated passwords.
+  #       * When nil, the existing password exists, and the existing password length
+  #         >='minimum_length', use the length of the existing password
+  #       * When nil, the existing password exists, and the existing password length
+  #         < 'minimum_length', use the 'default_length'
+  #       * When nil and the password does not exist, use 'default_length'
   #
   def set_passwords(names, options)
+    validate_set_config(names, options)
+
+    puppet_user = @puppet_info[:config]['user']
+    puppet_group = @puppet_info[:config]['group']
+    errors = []
     names.each do |name|
       next if name.strip.empty?
       password_filename = "#{@password_dir}/#{name}"
 
-      puts "#{@environment} Name: #{name}"
-      if options[:length].nil?
-        options[:length] = get_password_length(password_file, options)
-      end
-      password = get_new_password(options)
-      backup_password_files(password_filename) if File.exists?(password_filename)
-
+      location = @custom_password_dir ? @password_dir : "#{@environment} Environment"
+      puts "Processing Name '#{name}' in #{location}"
       begin
+        gen_options = options.dup
+        gen_options[:length] = get_password_length(password_filename, options)
+        password, generated = get_new_password(gen_options)
+        backup_password_files(password_filename) if File.exists?(password_filename)
+
         FileUtils.mkdir_p(@password_dir)
         File.open(password_filename, 'w') { |file| file.puts password }
 
         # Ensure that the ownership and permissions are correct
-        puppet_user = @puppet_info[:config]['user']
-        puppet_group = @puppet_info[:config]['group']
-        if puppet_user.empty? or puppet_group.empty?
-          err_msg = 'Could not set password file ownership:  unable to determine puppet user and group'
-          raise Simp::Cli::ProcessingError.new(err_msg)
-        end
         FileUtils.chown(puppet_user, puppet_group, password_filename)
         FileUtils.chmod(0640, password_filename)
 
+        if generated
+          puts "  Password set to '#{password}'" if generated
+        else
+          puts '  Password set'
+        end
+
+      # Will report all problems at end.
+      rescue Simp::Cli::ProcessingError => err
+        errors << "'#{name}': #{err.message}"
       rescue ArgumentError => err
         # This will happen if group does not exist
-        err_msg = "Could not set password file ownership: #{err}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
+        err_msg = "'#{name}': Could not set password file ownership for '#{password_filename}': #{err}"
+        errors << err_msg
       rescue SystemCallError => err
-        err_msg = "Error occurred while writing '#{password_filename}': #{err}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
+        err_msg = "'#{name}': Error occurred while writing '#{password_filename}': #{err}"
+        errors << err_msg
       end
+
       puts
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
@@ -147,27 +176,26 @@ class Simp::Cli::Passgen::LegacyPasswordManager
       Dir.chdir(@password_dir) do
         begin
           puts "Name: #{name}"
-          current_password = File.open("#{@password_dir}/#{name}", 'r').gets
+          current_password = File.read("#{@password_dir}/#{name}")
           last_password = nil
           last_password_file = "#{@password_dir}/#{name}.last"
           if File.exists?(last_password_file)
-            last_password = File.open(last_password_file, 'r').gets
+            last_password = File.read(last_password_file)
           end
           puts "  Current:  #{current_password}"
           puts "  Previous: #{last_password}" if last_password
         rescue Exception => e
-          # Skip this name for now. Will report all problems at end.
+          # Will report all problem details at end.
           puts '  UNKNOWN'
-          errors << "'#{name}: #{e}"
+          errors << "'#{name}': #{e}"
         end
       end
       puts
     end
 
     unless errors.empty?
-      $stderr.puts
-      $stderr.puts "Failed to read password info for the following:\n"
-      $stderr.puts "  #{errors.join("  \n")}"
+      err_msg = "Failed to read password info for the following:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
@@ -182,7 +210,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
       end
     rescue SystemCallError => err
-      err_msg = "Error occurred while backing up '#{password_filename}' files: #{err}"
+      err_msg = "Error occurred while backing up '#{password_filename}': #{err}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
@@ -204,14 +232,15 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
   def get_new_password(options)
     password = ''
-    prompt = 'Do you want to autogenerate the password?'
-    if options[:auto_gen] || Simp::Cli::Passgen::Utils::yes_or_no(prompt, true)
-      password = Simp::Cli::Utils.generate_password(option[:length])
-      puts "  Password set to '#{password}'"
+    generated = false
+    if options[:auto_gen]
+      password = Simp::Cli::Utils.generate_password(options[:length])
+      generated = true
     else
       password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
     end
-    password
+
+    [ password, generated ]
   end
 
   def get_password_dir
@@ -220,19 +249,25 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   end
 
   def get_password_length(password_file, options)
-    length =nil
-    if File.exist?(password_file)
-      begin
-        current_password = File.open(password_file, 'r').gets.chomp
-        if current_password.length >= options[:minimum_length]
-          length = current_password.length
+    length = nil
+    if options[:length].nil?
+      if File.exist?(password_file)
+        begin
+          password = File.read(password_file).chomp
+          length = password.length
+        rescue Exception => e
+          err_msg = "Error occurred while reading '#{password_file}': #{e}"
+          raise Simp::Cli::ProcessingError.new(err_msg)
         end
-      rescue Exception => e
-        err_msg = "Error occurred while reading '#{password_filename}': #{e}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
       end
+    else
+      length = options[:length]
     end
-    length = options[:default_length] if length.nil?
+
+    if length.nil? || (length < options[:minimum_length])
+      length = options[:default_length]
+    end
+
     length
   end
 
@@ -260,6 +295,35 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
     unless File.directory?(@password_dir)
       err_msg = "Password directory '#{@password_dir}' is not a directory"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  def validate_set_config(names, options)
+    validate_password_dir
+
+    if names.empty?
+      err_msg = 'No names specified.'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:auto_gen)
+      err_msg = 'Missing :auto_gen option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:force_value)
+      err_msg = 'Missing :force_value option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_length)
+      err_msg = 'Missing :default_length option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:minimum_length)
+      err_msg = 'Missing :minimum_length option'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end

@@ -23,7 +23,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     @names = Array.new
     @password_gen_options = {
      :auto_gen       => DEFAULT_AUTO_GEN_PASSWORDS,
-     :force_value    => false,  # whether to validate passwords from user
+     :force_value    => false,  # whether to accept passwords from user without validation
      :length         => nil,
      :default_length => DEFAULT_PASSWORD_LENGTH,
      :minimum_length => MINIMUM_PASSWORD_LENGTH
@@ -214,8 +214,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
       opts.on('--[no-]auto-generate', Boolean,
             'Whether to auto-generate new passwords.',
-            'When false the user will be prompted to enter new passwords.',
-            "Defaults to #{DEFAULT_AUTO_GEN_PASSWORDS}.") do |auto_gen|
+            'When disabled the user will be prompted to enter new passwords.',
+            "Defaults to #{DEFAULT_AUTO_GEN_PASSWORDS ? 'enabled' : 'disabled'}.") do |auto_gen|
         @password_gen_options[:auto_gen] = auto_gen
       end
 
@@ -270,7 +270,7 @@ require 'simp/cli/utils'
       opts.on('--force-remove',
             'Remove passwords without prompting user to confirm.',
             'If unspecified, user will be prompted to confirm the',
-            'removal action.') do |force_remove|
+            'removal action for each password.') do |force_remove|
         @force_remove = force_remove
       end
 
@@ -281,9 +281,9 @@ require 'simp/cli/utils'
 
       opts.on('--length', Integer,
             'Password length to use when auto-generated.',
-            'Defaults to the current password length, when present',
-            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}".'
-            "Otherwise, defaults to '#{DEFAULT_PASSWORD_LENGTH}'.",) do |length|
+            'Defaults to the current password length, when password is present',
+            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}".,
+            "Otherwise, defaults to '#{DEFAULT_PASSWORD_LENGTH}'.") do |length|
         @password_gen_options[:length] = length
       end
     end
