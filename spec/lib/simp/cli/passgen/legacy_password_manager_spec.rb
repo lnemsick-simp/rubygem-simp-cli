@@ -315,6 +315,41 @@ Name: env1_name1
         to output(expected_output).to_stdout
     end
 
+    it 'reports password read failures' do
+      names = ['name1', 'name2', 'name3']
+      create_password_files(@password_dir, names)
+      unreadable_file = File.join(@password_dir, 'name2')
+      allow(File).to receive(:open).with(any_args).and_call_original
+      allow(File).to receive(:open).with(unreadable_file, 'r').and_raise(
+        Errno::EACCES, 'failed read')
+
+      expected_stdout = <<-EOM
+production Environment Passwords
+================================
+Name: name1
+  Current:  name1_password
+  Previous: name1_backup_password
+
+Name: name2
+  UNKNOWN
+
+Name: name3
+  Current:  name3_password
+  Previous: name3_backup_password
+
+      EOM
+      expectation = expect { @manager.show_passwords(names) }.
+        to output(expected_stdout).to_stdout
+
+      expected_stderr = <<-EOM
+
+Failed to read password info for the following:
+  'name2: Permission denied - failed read
+      EOM
+      expect { @manager.show_passwords(names) }.
+        to output(expected_stderr).to_stderr
+    end
+
     it 'fails when no names specified' do
       expect { @manager.show_passwords([]) }.to raise_error(
         Simp::Cli::ProcessingError,

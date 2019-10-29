@@ -157,6 +157,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
           puts "  Previous: #{last_password}" if last_password
         rescue Exception => e
           # Skip this name for now. Will report all problems at end.
+          puts '  UNKNOWN'
           errors << "'#{name}: #{e}"
         end
       end
@@ -164,7 +165,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
 
     unless errors.empty?
-      puts
+      $stderr.puts
       $stderr.puts "Failed to read password info for the following:\n"
       $stderr.puts "  #{errors.join("  \n")}"
     end
