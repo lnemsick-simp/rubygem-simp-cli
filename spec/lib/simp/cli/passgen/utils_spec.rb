@@ -3,7 +3,7 @@ require 'spec_helper'
 
 
 describe Simp::Cli::Passgen::Utils do
-  describe '#get_password' do
+  describe '.get_password' do
     before :each do
       @input = StringIO.new
       @output = StringIO.new
@@ -89,7 +89,7 @@ EOM
     end
   end
 
-  describe '#yes_or_no' do
+  describe '.yes_or_no' do
     before :each do
       @input = StringIO.new
       @output = StringIO.new

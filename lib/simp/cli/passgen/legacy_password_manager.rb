@@ -14,8 +14,10 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
     if password_dir.nil?
       @password_dir = get_password_dir
+      @custom_password_dir = false
     else
       @password_dir = password_dir
+      @custom_password_dir = true
     end
   end
 
@@ -33,6 +35,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #   the user to verify the removal operation
   #
   def remove_passwords(names, force_remove)
+    validate_password_dir
     validate_names(names)
 
     names.each do |name|
@@ -79,6 +82,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
       backup_password_files(password_filename) if File.exists?(password_filename)
 
       begin
+        FileUtils.mkdir_p(@password_dir)
         File.open(password_filename, 'w') { |file| file.puts password }
 
         # Ensure that the ownership and permissions are correct
@@ -105,8 +109,10 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
   # Prints the list of password names for the environment to the console
   def show_name_list
+    validate_password_dir
     names = get_names
-    puts "#{@environment} Names:\n\t#{names.join("\n\t")}"
+    prefix = @custom_password_dir ? @password_dir : @environment
+    puts "#{prefix} Names:\n  #{names.join("\n  ")}"
     puts
   end
 
@@ -116,24 +122,38 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # previous value.
   #
   def show_passwords(names)
+    validate_password_dir
     validate_names(names)
 
-    title =  "#{@environment} Environment"
+    prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
+    title =  "#{prefix} Passwords"
     puts title
     puts '='*title.length
+    errors = []
     names.each do |name|
       Dir.chdir(@password_dir) do
-        puts "Name: #{name}"
-        current_password = File.open("#{@password_dir}/#{name}", 'r').gets
-        puts "  Current:  #{current_password}"
-        last_password = nil
-        last_password_file = "#{@password_dir}/#{name}.last"
-        if File.exists?(last_password_file)
-          last_password = File.open(last_password_file, 'r').gets
+        begin
+          puts "Name: #{name}"
+          current_password = File.open("#{@password_dir}/#{name}", 'r').gets
+          last_password = nil
+          last_password_file = "#{@password_dir}/#{name}.last"
+          if File.exists?(last_password_file)
+            last_password = File.open(last_password_file, 'r').gets
+          end
+          puts "  Current:  #{current_password}"
+          puts "  Previous: #{last_password}" if last_password
+        rescue Exception => e
+          # Skip this name for now. Will report all problems at end.
+          errors << "'#{name}: #{e}"
         end
-        puts "  Previous: #{last_password}" if last_password
       end
       puts
+    end
+
+    unless errors.empty?
+      puts
+      $stderr.puts "Failed to read password info for the following:\n"
+      $stderr.puts "  #{errors.join("  \n")}"
     end
   end
 
@@ -203,6 +223,11 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   end
 
   def validate_names(names)
+    if names.empty?
+      err_msg = 'No names specified.'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
     actual_names = get_names
     names.each do |name|
       unless actual_names.include?(name)
