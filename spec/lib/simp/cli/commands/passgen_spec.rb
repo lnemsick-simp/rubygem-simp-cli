@@ -151,6 +151,20 @@ Warning: Missing dependency 'puppetlabs-apt':
     end
   end
 
+  describe '#legacy_passgen?' do
+    before :all do
+      @passgen = Simp::Cli::Commands::Passgen.new
+    end
+
+    it 'should return true for old simplib' do
+      expect( @passgen.legacy_passgen?('3.17.0') ).to eq(true)
+    end
+
+    it 'should return false for new simplib' do
+      expect( @passgen.legacy_passgen?('4.0.1') ).to eq(false)
+    end
+  end
+
 =begin
   describe '#run' do
     before :each do

@@ -130,7 +130,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @returns whether the environment has an old version of simplib
   #   that does not provide password-managing Puppet functions
   def legacy_passgen?(env_simplib_version)
-    env_simplib_version.split('.')[0] < LIBKV_SIMPLIB_VERSION.split('.')[0]
+    env_simplib_version.split('.')[0].to_i < LIBKV_SIMPLIB_VERSION.split('.')[0].to_i
   end
 
   def parse_command_line(args)
