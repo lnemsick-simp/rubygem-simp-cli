@@ -259,18 +259,32 @@ Environments:
       end
     end
 
-=begin
+    # The list name operation is fully tested in the objects that implement
+    # this functionality.  This test is a subset of those tests with the intent
+    # to verify the correct object was constructed and used and its results are
+    # properly reported.
     describe '--list-name option' do
+      context 'legacy manager for legacy passgen' do
       before :each do
+        @password_env_dir = File.join(@var_dir, 'simp', 'environments')
         @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
         FileUtils.mkdir_p(@default_password_dir)
+
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+        command = 'puppet module list --color=false --environment=production'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_old_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
       end
 
       it 'lists no password names, when no names exist' do
         expected_output = <<EOM
 production Names:
   
-./spec/lib/simp/cli/commands/passgen_spec.rb
+
 EOM
         expect { @passgen.run(['--list-name']) }.to output(expected_output).to_stdout
       end
@@ -298,6 +312,15 @@ EOM
         password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
         FileUtils.mkdir_p(password_dir)
         FileUtils.touch(File.join(password_dir, 'env1_name1'))
+
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'env1'))
+        command = 'puppet module list --color=false --environment=env1'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_old_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
         expected_output = <<EOM
 env1 Names:
   env1_name1
@@ -320,9 +343,19 @@ EOM
           Simp::Cli::ProcessingError,
           "Password directory '#{@default_password_dir}' is not a directory")
       end
+      end
 
+=begin
+      context 'current manager for legacy mode passgen' do
+      end
+
+      context 'current manager for libkv mode passgen' do
+      end
+
+=end
     end
 
+=begin
     describe '--name option' do
       before :each do
         @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')

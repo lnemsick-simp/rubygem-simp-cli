@@ -1,5 +1,7 @@
 require 'simp/cli/commands/command'
 require 'simp/cli/exec_utils'
+require 'simp/cli/passgen/legacy_password_manager'
+require 'simp/cli/passgen/password_manager'
 require 'simp/cli/utils'
 require 'highline/import'
 
