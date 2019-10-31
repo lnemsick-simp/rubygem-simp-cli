@@ -1,250 +1,271 @@
 require 'highline/import'
+require 'simp/cli/exec_utils'
+require 'simp/cli/passgen/utils'
+#require 'simp/cli/utils'
 
-class Simp::Cli::::Passgen::PasswordManager
-  require 'fileutils'
+class Simp::Cli::Passgen::PasswordManager
 
-  def initialize(environment)
+  def initialize(environment, backend, folder)
     @environment = environment
+    @backend = backend
+    @folder = folder
+    @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
+
+    @location = "#{@environment} Environment"
+    @location += " in #{@backend} backend" unless @backend.nil?
+    @custom_options = @backend.nil? ? nil : "{ 'backend' => '#{@backend}' }"
   end
 
   #####################################################
   # Operations
   #####################################################
+
+  # Remove a list of passwords
   #
+  # Removes the listed passwords in the key/value store.
+  #
+  # @param names Array of names(keys) of passwords to remove
+  # @param force_remove Whether to remove password files without prompting
+  #   the user to verify the removal operation
+  #
+  def remove_passwords(names, force_remove=false)
+    validate_names(names)
+
+    names.each do |name|
+      remove = force_remove
+      unless remove
+        prompt = "Are you sure you want to remove all entries for '#{name}'?".bold
+        remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
+      end
+
+      if remove
+        fullname = @folder.nil? ? name : "#{@folder}/#{name}"
+        begin
+          args = "'#{fullname}'"
+          args += ", #{@custom_options}" if @custom_options
+          manifest = "simplib::passgen::remove(#{args})"
+          apply_manifest(manifest)
+          puts "Deleted #{fullname} in #{@location}"
+        rescue Exception => e
+          # Will report all problems at end.
+          errors << "'#{fullname}': #{e}"
+        end
+      end
+
+      puts
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to delete the following password keys in #{@location}:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  # Set a list of passwords to values selected by the user
+  #
+  #
+  # @param names Array of names of passwords to set
+  # @param options Hash of password generation options.
+  #   * Required keys:
+  #     * :auto_gen - whether to auto-generate new passwords
+  #     * :force_value - whether to accept passwords entered by user without
+  #       validation
+  #     * :default_length - default password length of auto-generated passwords.
+  #     * :minimum_length - minimum password length
+  #
+  #   * Optional keys:
+  #     * :length - requested length of auto-generated passwords.
+  #       * When nil, the password exists, and the existing password length
+  #         >='minimum_length', use the length of the existing password
+  #       * When nil, the password exists, and the existing password length
+  #         < 'minimum_length', use the 'default_length'
+  #       * When nil and the password does not exist, use 'default_length'
+  #
+  def set_passwords(names, options)
+    validate_set_config(names, options)
+
+    puppet_user = @puppet_info[:config]['user']
+    puppet_group = @puppet_info[:config]['group']
+    errors = []
+    names.each do |name|
+      next if name.strip.empty?
+
+      puts "Processing Name '#{name}' in #{@location}"
+      begin
+        gen_options = options.dup
+        gen_options[:length] = get_password_length(password_filename, options)
+        password, generated = get_new_password(gen_options)
+        if generated
+          puts "  Password set to '#{password}'" if generated
+        else
+          puts '  Password set'
+        end
+     # Will report all problems at end.
+      rescue Simp::Cli::ProcessingError => err
+        errors << "'#{name}': #{err.message}"
+      rescue ArgumentError => err
+        # This will happen if group does not exist
+        err_msg = "'#{name}': Could not set password file ownership for '#{password_filename}': #{err}"
+        errors << err_msg
+      rescue SystemCallError => err
+        err_msg = "'#{name}': Error occurred while writing '#{password_filename}': #{err}"
+        errors << err_msg
+      end
+
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  # Prints the list of password names for the environment to the console
+  def show_name_list
+    validate_password_dir
+    names = get_names
+    prefix = @custom_password_dir ? @password_dir : @environment
+    puts "#{prefix} Names:\n  #{names.join("\n  ")}"
+    puts
+  end
+  # Prints password info for the environment to the console.
+  #
+  # For each password name, prints its current value, and when present, its
+  # previous value.
+  #
+  def show_passwords(names)
+    validate_password_dir
+    validate_names(names)
+
+    prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
+    title =  "#{prefix} Passwords"
+    puts title
+    puts '='*title.length
+    errors = []
+    names.each do |name|
+      Dir.chdir(@password_dir) do
+        begin
+          puts "Name: #{name}"
+          current_password = File.read("#{@password_dir}/#{name}")
+          last_password = nil
+          last_password_file = "#{@password_dir}/#{name}.last"
+          if File.exists?(last_password_file)
+            last_password = File.read(last_password_file)
+          end
+          puts "  Current:  #{current_password}"
+          puts "  Previous: #{last_password}" if last_password
+        rescue Exception => e
+          # Will report all problem details at end.
+          puts '  UNKNOWN'
+          errors << "'#{name}': #{e}"
+        end
+      end
+      puts
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to read password info for the following:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
 
   #####################################################
   # Helpers
   #####################################################
-
-  def run(args)
-    parse_command_line(args)
-    return if @help_requested
-
-    @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
-
-    case @operation
-    when :show_environment_list
-      show_environment_list
-    when :show_name_list
-# list the key/value pairs for an environment
-#   recursion?  no?  dangerous?  allow user to specify
-#   a subdir
-#    --> Only applies to libkv-enabled simplib::passgen.
-#        Legacy doesn't allow subdirs.
-#
-# don't need to allow user to specify app_id if allow them to specify a backend
-# simplib::passgen::list
-      show_name_list
-    when :show_passwords
-# simplib::passgen::list
-      show_passwords
-    when :set_passwords
-# retrieve a password and any stored attributes from an environment
-# if it exists, otherwise return empty {}
-# simplib::passgen::get
-#
-# set password with attributes (after generating salt) and backup existing
-# password as 'last' password
-# simplib::passgen::set
-      set_passwords
-    when :remove_passwords
-# remove current and last setting for a password
-# simplib::passgen::remove
-      remove_passwords
+  #
+  def apply_manifest(manifest)
+    cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c 'puppet apply"
+    result = Simp::Cli::ExecUtils.run_command(cmd)
+    unless result[:status]
+      err_message = "#{cmd} failed: #{result[:stderr]}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
-
-  def execute_apply(manifest, environment)
-
-  end
-
-  def parse_command_line(args)
-  end
 
   def get_names
   end
 
-  def get_password(allow_autogenerate = true, attempts = 5)
-    if (attempts == 0)
-      raise Simp::Cli::ProcessingError.new('FATAL: Too may failed attempts to enter password')
-    end
 
+  def get_new_password(options)
     password = ''
-    if allow_autogenerate and yes_or_no('Do you want to autogenerate the password?', true )
-      password = Simp::Cli::Utils.generate_password
-      puts "  Password set to '#{password}'"
+    generated = false
+    if options[:auto_gen]
+      password = Simp::Cli::Utils.generate_password(options[:length])
+      generated = true
     else
-      question1 = "> #{'Enter password'.bold}: "
-      password = ask(question1) do |q|
-        q.echo = '*'
-        q.validate = lambda { |answer| validate_password(answer) }
-        q.responses[:not_valid] = nil
-        q.responses[:ask_on_error] = :question
-        q
-      end
-
-      question2 = "> #{'Confirm password'.bold}: "
-      confirm_password = ask(question2) do |q|
-        q.echo = '*'
-        q
-      end
-
-      if password != confirm_password
-        $stderr.puts '  Passwords do not match! Please try again.'.red.bold
-
-        # start all over, skipping the autogenerate question
-        password = get_password(false, attempts - 1)
-      end
+      password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
     end
-    password
+
+    [ password, generated ]
   end
 
-  def validate_names
-    names = get_names
-    @names.each do |name|
-      unless names.include?(name)
+  def get_password_length
+    length = nil
+    if options[:length].nil?
+      if File.exist?(password_file)
+        begin
+          password = File.read(password_file).chomp
+          length = password.length
+        rescue Exception => e
+          err_msg = "Error occurred while reading '#{password_file}': #{e}"
+          raise Simp::Cli::ProcessingError.new(err_msg)
+        end
+      end
+    else
+      length = options[:length]
+    end
+
+    if length.nil? || (length < options[:minimum_length])
+      length = options[:default_length]
+    end
+
+    length
+  end
+
+  def validate_names(names)
+    if names.empty?
+      err_msg = 'No names specified.'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    actual_names = get_names
+    names.each do |name|
+      unless actual_names.include?(name)
         #FIXME print out names nicely (e.g., max 8 per line)
-        raise OptionParser::ParseError.new("Invalid name '#{name}' selected.\n\nValid names: #{names.join(', ')}")
-      end
-    end
-  end
-
-  def validate_password(password)
-    begin
-      Simp::Cli::Utils::validate_password(password)
-      return true
-    rescue Simp::Cli::PasswordError => e
-      $stderr.puts "  #{e.message}.".red.bold
-      return false
-    end
-  end
-
-# For listing of environments
-# look at /etc/puppetlabs/code/environments for possible environments
-# NO OPTION 1
-# iterate through each
-# - Examine simplib version of the environment selected
-#    YES: puppet module list --tree | grep simplib
-#    │ └─┬ simp-simplib (v3.17.0)
-# - If has newer simplib, can do all operations on new or old passwords
-#   using manifests for new simplib::passgen::xxx commands
-# - If does not have newer simplib, there won't be any libkv passwords.  So,
-#   execute the legacy 'simp passgen' code.
-#
-# environment_exists
-#   directory exists and is not empty
-#
-# YES OPTION 2
-# iterate through each
-# remove environments that don't have simp-simplib
-#
-  def show_environment_list
-# return the environments that have passgen keys
-# which backend? --> default backend unless specified
-# otherwise.  Will need to read  libkv::options in case
-# has a backend hard-coded in lieu of 'default'.  May
-# be auto_default as well.
-#
-#   will have to query both old and new and merge
-# simplib::passgen::environments
-#FIXME Only way to replace is with a directory list of environments dir...
-#May want to go further and check if has modules.
-    # FIXME This ASSUMES @password_dir follows a known pattern of
-    #   <env dir>/<env>/simp_autofiles/gen_passwd
-    # (which also assumes Linux path separators)
-    result = execute_apply(manifest, nil)
-
-    puts "Environments:\n\t#{environments.join("\n\t")}"
-    puts
-  end
-
-# For all other commands (show_name_list, show_passwords, etc.)
-# - Examine simplib version of the environment selected
-#    YES: puppet module list --tree | grep simplib
-#    │ └─┬ simp-simplib (v3.17.0)
-# - If has newer simplib, can do all operations on new and old passwords
-#   using manifests for new simplib::passgen::xxx commands
-# - If does not have newer simplib, there won't be any libkv passwords.  So,
-#   execute the legacy 'simp passgen' code.
-# 
-
-  def show_name_list
-    validate_password_dir
-    names = get_names
-    puts "#{@environment} Names:\n\t#{names.join("\n\t")}"
-    puts
-  end
-
-  def show_passwords
-    validate_password_dir
-    validate_names
-
-    title =  "#{@environment} Environment"
-    puts title
-    puts '='*title.length
-    @names.each do |name|
-      Dir.chdir(@password_dir) do
-        puts "Name: #{name}"
-        current_password = File.open("#{@password_dir}/#{name}", 'r').gets
-        puts "  Current:  #{current_password}"
-        last_password = nil
-        last_password_file = "#{@password_dir}/#{name}.last"
-        if File.exists?(last_password_file)
-          last_password = File.open(last_password_file, 'r').gets
-        end
-        puts "  Previous: #{last_password}" if last_password
-      end
-      puts
-    end
-  end
-
-  def backup_password_files(password_filename)
-    backup_passwords = @backup_passwords
-    if backup_passwords.nil?
-      backup_passwords = yes_or_no("Would you like to rotate the old password?", false)
-    end
-    if backup_passwords
-      begin
-        FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
-        salt_filename = password_filename + '.salt'
-        if File.exists?(salt_filename)
-          FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
-        end
-      rescue SystemCallError => err
-        err_msg = "Error occurred while backing up '#{password_filename}' files: #{err}"
+        err_msg = "Invalid name '#{name}' selected.\n\nValid names: #{actual_names.join(', ')}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     end
   end
 
-# OLD PASSGEN
-# need to use simplib::gen_random_password to generate new password and salt
-# FileUtils.cp with preserve to backup last files to dot files
-# then FileUtils.cp with preserve to copy current contents to the last contents
-# overwrite current contents
-# remove last dot files
-# revert if any failure
-# NEW PASSGEN
-# use the api...
-  def set_passwords
-  end
+  def validate_set_config(names, options)
+    validate_password_dir
 
-  def remove_passwords
-  end
-
-  def validate_environment
-  end
-
-  def yes_or_no(prompt, default_yes)
-    question = "> #{prompt.bold}: "
-    answer = ask(question) do |q|
-      q.validate = /^y$|^n$|^yes$|^no$/i
-      q.default = (default_yes ? 'yes' : 'no')
-      q.responses[:not_valid] = "Invalid response. Please enter 'yes' or 'no'".red
-      q.responses[:ask_on_error] = :question
-      q
+    if names.empty?
+      err_msg = 'No names specified.'
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
-    result = (answer.downcase[0] == 'y')
+
+    unless options.key?(:auto_gen)
+      err_msg = 'Missing :auto_gen option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:force_value)
+      err_msg = 'Missing :force_value option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_length)
+      err_msg = 'Missing :default_length option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:minimum_length)
+      err_msg = 'Missing :minimum_length option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
   end
+
 end

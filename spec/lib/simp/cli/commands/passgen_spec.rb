@@ -1,10 +1,10 @@
 require 'simp/cli/commands/passgen'
-require 'simp/cli/utils'
 require 'spec_helper'
 require 'etc'
 require 'tmpdir'
 
 
+=begin
 def validate_set_and_backup(passgen, args, expected_output, expected_file_info)
   expect { passgen.run(args) }.to output(expected_output).to_stdout
 
@@ -13,182 +13,145 @@ def validate_set_and_backup(passgen, args, expected_output, expected_file_info)
     expect( IO.read(file).chomp ).to eq expected_contents
   end
 end
+=end
 
 describe Simp::Cli::Commands::Passgen do
-  describe '#get_password' do
-    before :each do
-      @input = StringIO.new
-      @output = StringIO.new
-      @prev_terminal = $terminal
-      $terminal = HighLine.new(@input, @output)
 
+  let(:module_list_old_simplib) {
+    <<-EOM
+/etc/puppetlabs/code/environments/production/modules
+├── puppet-yum (v3.1.1)
+├── puppetlabs-stdlib (v5.2.0)
+├── simp-aide (v6.3.0)
+├── simp-simplib (v3.15.3)
+/var/simp/environments/production/site_files
+├── krb5_files (???)
+└── pki_files (???)
+/etc/puppetlabs/code/modules (no modules installed)
+/opt/puppetlabs/puppet/modules (no modules installed)
+    EOM
+  }
+
+  let(:module_list_new_simplib) {
+    module_list_old_simplib.gsub(/simp-simplib .v3.15.3/,'simp-simplib (v4.0.0)')
+  }
+
+  let(:module_list_no_simplib) {
+    list = module_list_old_simplib.dup.split("\n")
+    list.delete_if { |line| line.include?('simp-simplib') }
+    list.join("\n") + "\n"
+  }
+
+  let(:missing_deps_warnings) {
+    <<-EOM
+Warning: Missing dependency 'puppetlabs-apt':
+  'puppetlabs-postgresql' (v5.12.1) requires 'puppetlabs-apt' (>= 2.0.0 < 7.0.0)
+    EOM
+  }
+
+  describe '#find_valid_environments' do
+    before :each do
+      @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
+      @var_dir = File.join(@tmp_dir, 'vardir')
+      @puppet_env_dir = File.join(@tmp_dir, 'environments')
+      @user  = Etc.getpwuid(Process.uid).name
+      @group = Etc.getgrgid(Process.gid).name
+      puppet_info = {
+        :config => {
+          'user'   => @user,
+          'group'  => @group,
+          'vardir' => @var_dir,
+          'environmentpath' => @puppet_env_dir
+        }
+      }
+
+      allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
       @passgen = Simp::Cli::Commands::Passgen.new
     end
 
     after :each do
-      @input.close
-      @output.close
-      $terminal = @prev_terminal
+      FileUtils.remove_entry_secure @tmp_dir, true
     end
 
-    let(:password1) { 'A=V3ry=Go0d=P@ssw0r!' }
-
-    it 'autogenerates a password when default is selected' do
-      @input << "\n"
-      @input.rewind
-      expect( @passgen.get_password.length )
-        .to eq Simp::Cli::Utils::DEFAULT_PASSWORD_LENGTH
-
-      expected = '> Do you want to autogenerate the password?: |yes| '
-      expect( @output.string.uncolor ).to eq expected
+    it 'returns empty hash when Puppet environments dir is missing or inaccessible' do
+      expect( @passgen.find_valid_environments ).to eq({})
     end
 
-    it "autogenerates a password when 'yes' is entered" do
-      @input << "yes\n"
-      @input.rewind
-      expect( @passgen.get_password.length )
-        .to eq Simp::Cli::Utils::DEFAULT_PASSWORD_LENGTH
-
-      expected = '> Do you want to autogenerate the password?: |yes| '
-      expect( @output.string.uncolor ).to eq expected
+    it 'returns empty hash when Puppet environments dir is empty' do
+      FileUtils.mkdir_p(@puppet_env_dir)
+      expect( @passgen.find_valid_environments ).to eq({})
     end
 
-    it 'does not prompt for autogenerate when allow_autogenerate=false' do
-      @input << "#{password1}\n"
-      @input << "#{password1}\n"
-      @input.rewind
-      expect( @passgen.get_password(false) ).to eq password1
+    it 'returns empty hash when no Puppet environments have simp-simplib installed' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
 
-      expected = <<EOM
-> Enter password: ********************
-> Confirm password: ********************
-EOM
-      expect( @output.string.uncolor ).to_not match /Do you want to autogenerate/
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_no_simplib,
+        :stderr => missing_deps_warnings
+      }
+
+      [
+        'puppet module list --color=false --environment=production',
+        'puppet module list --color=false --environment=dev',
+        'puppet module list --color=false --environment=test'
+      ].each do |command|
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      end
+
+      expect( @passgen.find_valid_environments ).to eq({})
     end
 
-    it 'accepts a valid password when entered twice' do
-      @input << "no\n"
-      @input << "#{password1}\n"
-      @input << "#{password1}\n"
-      @input.rewind
-      expect( @passgen.get_password ).to eq password1
+    it 'returns hash with only Puppet environments that have simp-simplib installed' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      command = 'puppet module list --color=false --environment=production'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_old_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
-      expected = <<EOM
-> Do you want to autogenerate the password?: |yes| > Enter password: ********************
-> Confirm password: ********************
-EOM
-      expect(@output.string.uncolor).to eq expected
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
+      command = 'puppet module list --color=false --environment=dev'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_no_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
+      command = 'puppet module list --color=false --environment=test'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_new_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+      expected = { 'production' => '3.15.3', 'test' => '4.0.0' }
+      expect( @passgen.find_valid_environments ).to eq(expected)
     end
 
-    it 're-prompts when the entered password fails validation' do
-      @input << "short\n"
-      @input << "#{password1}\n"
-      @input << "#{password1}\n"
-      @input.rewind
-      expect( @passgen.get_password(false) ).to eq password1
+    it 'fails if puppet module list command fails' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      command = 'puppet module list --color=false --environment=production'
+      module_list_results = {
+        :status => false,
+        :stdout => '',
+        :stderr => 'some failure message'
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
-      expected = <<EOM
-> Enter password: *****
-> Enter password: ********************
-> Confirm password: ********************
-EOM
-      expect(@output.string.uncolor).to eq expected
+      expect{ @passgen.find_valid_environments }.to raise_error(Simp::Cli::ProcessingError,
+        "#{command} failed: some failure message")
     end
-
-    it 'starts over when the confirm password does not match the entered password' do
-      @input << "#{password1}\n"
-      @input << "bad confirm\n"
-      @input << "#{password1}\n"
-      @input << "#{password1}\n"
-      @input.rewind
-      expect( @passgen.get_password(false) ).to eq password1
-
-      expected = <<EOM
-> Enter password: ********************
-> Confirm password: ***********
-> Enter password: ********************
-> Confirm password: ********************
-EOM
-      expect(@output.string.uncolor).to eq expected
-    end
-
-    it 'fails after 5 failed start-over attempts' do
-      @input << "#{password1}\n"
-      @input << "bad confirm 1\n"
-      @input << "#{password1}\n"
-      @input << "bad confirm 2\n"
-      @input << "#{password1}\n"
-      @input << "bad confirm 3\n"
-      @input << "#{password1}\n"
-      @input << "bad confirm 4\n"
-      @input << "#{password1}\n"
-      @input << "bad confirm 5\n"
-      @input.rewind
-      expect{ @passgen.get_password(false) }
-        .to raise_error(Simp::Cli::ProcessingError)
-    end
-
   end
 
-  describe '#yes_or_no' do
-    before :each do
-      @input = StringIO.new
-      @output = StringIO.new
-      @prev_terminal = $terminal
-      $terminal = HighLine.new(@input, @output)
-
-      @passgen = Simp::Cli::Commands::Passgen.new
-    end
-
-    after :each do
-      @input.close
-      @output.close
-      $terminal = @prev_terminal
-    end
-
-    it "when default_yes=true, prompts, accepts default of 'yes' and returns true" do
-      @input << "\n"
-      @input.rewind
-
-      expect( @passgen.yes_or_no('Remove backups', true) ).to eq true
-      expect( @output.string.uncolor ).to eq '> Remove backups: |yes| '
-    end
-
-    it "when default_yes=false, prompts, accepts default of 'no' and returns false" do
-      @input << "\n"
-      @input.rewind
-      expect( @passgen.yes_or_no('Remove backups', false) ).to eq false
-      expect( @output.string.uncolor ).to eq '> Remove backups: |no| '
-    end
-
-    ['yes', 'YES', 'y', 'Y'].each do |response|
-      it "accepts '#{response}' and returns true" do
-        @input << "#{response}\n"
-        @input.rewind
-        expect( @passgen.yes_or_no('Remove backups', false) ).to eq true
-      end
-    end
-
-    ['no', 'NO', 'n', 'N'].each do |response|
-      it "accepts '#{response}' and returns false" do
-        @input << "#{response}\n"
-        @input.rewind
-        expect( @passgen.yes_or_no('Remove backups', false) ).to eq false
-      end
-    end
-
-    it 're-prompts user when user does not enter a string that begins with Y, y, N, or n' do
-      @input << "oops\n"
-      @input << "I\n"
-      @input << "can't\n"
-      @input << "type!\n"
-      @input << "yes\n"
-      @input.rewind
-      expect( @passgen.yes_or_no('Remove backups', false) ).to eq true
-    end
-
-  end
-
+=begin
   describe '#run' do
     before :each do
       @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
@@ -819,4 +782,5 @@ EOM
       end
     end
   end
+=end
 end

@@ -108,7 +108,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
     # only keep environments that have simplib installed
     env_info = {}
-    environments.each do |env|
+    environments.sort.each do |env|
       command = "puppet module list --color=false --environment=#{env}"
       result = Simp::Cli::ExecUtils.run_command(command)
 
@@ -119,7 +119,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
           env_info[env] = match[1] # version of simp-simplib
         end
       else
-        err_message = "#{command} failed: #{result[:stderr]}"
+        err_msg = "#{command} failed: #{result[:stderr]}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     end
@@ -159,10 +159,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator '  simp passgen -e test -r NAME1,NAME2'
       opts.separator ''
       opts.separator '  # manually set specific passwords in the production environment'
-      opts.separator '  simp passgen -s NAME1,NAME2,NAME3',
+      opts.separator '  simp passgen -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator '  # regenerate specific passwords in the production environment'
-      opts.separator '  simp passgen --auto-generate -s NAME1,NAME2,NAME3',
+      opts.separator '  simp passgen --auto-generate -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator 'COMMANDS:'
       opts.separator ''
@@ -212,7 +212,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator 'COMMAND MODIFIERS:'
       opts.separator ''
 
-      opts.on('--[no-]auto-generate', Boolean,
+      opts.on('--[no-]auto-generate',
             'Whether to auto-generate new passwords.',
             'When disabled the user will be prompted to enter new passwords.',
             "Defaults to #{DEFAULT_AUTO_GEN_PASSWORDS ? 'enabled' : 'disabled'}.") do |auto_gen|
@@ -223,19 +223,17 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
             'Password complexity to use when auto-generated.',
             'For existing passwords stored a libkv key/value store, defaults to the current password complexity.',
 #DEFAULT
-require 'simp/cli/utils'
-
             "Otherwise, defaults to '0'.",
-            'See simplib::passgen documentation for details'.) do |complexity|
+            'See simplib::passgen documentation for details') do |complexity|
         @password_gen_options[:complexity] = complexity
       end
 
-      opts.on('--[no-]complex-only', Boolean,
+      opts.on('--[no-]complex-only',
             'Whether to only use only complex characters when password is auto-generated.',
             'For existing passwords in a libkv key/value store, defaults to the current password setting.',
 #DEFAULT
             "Otherwise, defaults to 'false'.",
-            'See simplib::passgen documentation for details'.) do |complex_only|
+            'See simplib::passgen documentation for details') do |complex_only|
         @password_gen_options[:complex_only] = complex_only
       end
 
@@ -243,7 +241,7 @@ require 'simp/cli/utils'
       opts.on('--backend BACKEND',
             'Specific libkv backend to query for the specified environment.',
             'Defaults to the default backend for simplib::passgen.',
-            'Only needed for passwords from simplib::passgen calls with custom libkv settings.'.) do |backend|
+            'Only needed for passwords from simplib::passgen calls with custom libkv settings.') do |backend|
         @backend = backend
       end
 
@@ -282,7 +280,7 @@ require 'simp/cli/utils'
       opts.on('--length', Integer,
             'Password length to use when auto-generated.',
             'Defaults to the current password length, when password is present',
-            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}".,
+            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}",
             "Otherwise, defaults to '#{DEFAULT_PASSWORD_LENGTH}'.") do |length|
         @password_gen_options[:length] = length
       end
@@ -299,7 +297,7 @@ require 'simp/cli/utils'
 
   # Prints to the console the list of Puppet environments for which
   # simp-simplib is installed
-  def show_environment_list(valid_envs))
+  def show_environment_list(valid_envs)
     if valid_envs.empty?
       puts 'No environments with simp-simplib installed found.'
     else

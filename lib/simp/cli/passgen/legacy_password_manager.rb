@@ -42,7 +42,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     names.each do |name|
       remove = force_remove
       unless remove
-        prompt = "Are you sure you want to remove all entries for #{name}?"
+        prompt = "Are you sure you want to remove all entries for '#{name}'?".bold
         remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
 
@@ -74,7 +74,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
   end
 
-  # Set a list of passwords to values entered by the user
+  # Set a list of passwords to values selected by the user
   #
   # For each password name, backups up existing password files and  creates a
   # new password file.  Does not create a salt file, but relies on
@@ -91,9 +91,9 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #
   #   * Optional keys:
   #     * :length - requested length of auto-generated passwords.
-  #       * When nil, the existing password exists, and the existing password length
+  #       * When nil, the password exists, and the existing password length
   #         >='minimum_length', use the length of the existing password
-  #       * When nil, the existing password exists, and the existing password length
+  #       * When nil, the password exists, and the existing password length
   #         < 'minimum_length', use the 'default_length'
   #       * When nil and the password does not exist, use 'default_length'
   #
