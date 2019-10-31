@@ -265,39 +265,30 @@ Environments:
     # properly reported.
     describe '--list-name option' do
       context 'legacy manager for legacy passgen' do
-      before :each do
-        @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-        @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@default_password_dir)
+        before :each do
+          @password_env_dir = File.join(@var_dir, 'simp', 'environments')
+          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          FileUtils.mkdir_p(@default_password_dir)
 
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-        command = 'puppet module list --color=false --environment=production'
-        module_list_results = {
-          :status => true,
-          :stdout => module_list_old_simplib,
-          :stderr => missing_deps_warnings
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-      end
+          FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+          command = 'puppet module list --color=false --environment=production'
+          module_list_results = {
+            :status => true,
+            :stdout => module_list_old_simplib,
+            :stderr => missing_deps_warnings
+          }
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+        end
 
-      it 'lists no password names, when no names exist' do
-        expected_output = <<EOM
-production Names:
-  
-
-EOM
-        expect { @passgen.run(['--list-name']) }.to output(expected_output).to_stdout
-      end
-
-      it 'lists available names for default environment' do
-        FileUtils.touch(File.join(@default_password_dir, 'production_name'))
-        FileUtils.touch(File.join(@default_password_dir, 'production_name.salt'))
-        FileUtils.touch(File.join(@default_password_dir, 'production_name.last'))
-        FileUtils.touch(File.join(@default_password_dir, 'production_name.salt.last'))
-        FileUtils.touch(File.join(@default_password_dir, '10.0.1.2'))
-        FileUtils.touch(File.join(@default_password_dir, 'salt.and.pepper'))
-        FileUtils.touch(File.join(@default_password_dir, 'my.last.name'))
-        expected_output = <<EOM
+        it 'lists available names for default environment' do
+          FileUtils.touch(File.join(@default_password_dir, 'production_name'))
+          FileUtils.touch(File.join(@default_password_dir, 'production_name.salt'))
+          FileUtils.touch(File.join(@default_password_dir, 'production_name.last'))
+          FileUtils.touch(File.join(@default_password_dir, 'production_name.salt.last'))
+          FileUtils.touch(File.join(@default_password_dir, '10.0.1.2'))
+          FileUtils.touch(File.join(@default_password_dir, 'salt.and.pepper'))
+          FileUtils.touch(File.join(@default_password_dir, 'my.last.name'))
+          expected_output = <<EOM
 production Names:
   10.0.1.2
   my.last.name
@@ -305,44 +296,36 @@ production Names:
   salt.and.pepper
 
 EOM
-        expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
-      end
+          expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
+        end
 
-      it 'lists available names for specified environment' do
-        password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(password_dir)
-        FileUtils.touch(File.join(password_dir, 'env1_name1'))
+        it 'lists available names for specified environment' do
+          password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
+          FileUtils.mkdir_p(password_dir)
+          FileUtils.touch(File.join(password_dir, 'env1_name1'))
 
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'env1'))
-        command = 'puppet module list --color=false --environment=env1'
-        module_list_results = {
-          :status => true,
-          :stdout => module_list_old_simplib,
-          :stderr => missing_deps_warnings
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-        expected_output = <<EOM
+          FileUtils.mkdir_p(File.join(@puppet_env_dir, 'env1'))
+          command = 'puppet module list --color=false --environment=env1'
+          module_list_results = {
+            :status => true,
+            :stdout => module_list_old_simplib,
+            :stderr => missing_deps_warnings
+          }
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+          expected_output = <<EOM
 env1 Names:
   env1_name1
 
 EOM
-        expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
-      end
+          expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
+        end
 
-      it 'fails when password directory does not exist' do
-        FileUtils.rm_rf(@default_password_dir)
-        expect { @passgen.run(['-l']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@default_password_dir}' does not exist")
-      end
-
-      it 'fails when password directory is not a directory' do
-        FileUtils.rm_rf(@default_password_dir)
-        FileUtils.touch(@default_password_dir)
-        expect { @passgen.run(['-l']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@default_password_dir}' is not a directory")
-      end
+        it 'fails when password directory does not exist' do
+          FileUtils.rm_rf(@default_password_dir)
+          expect { @passgen.run(['-l']) }.to raise_error(
+            Simp::Cli::ProcessingError,
+            "Password directory '#{@default_password_dir}' does not exist")
+        end
       end
 
 =begin
