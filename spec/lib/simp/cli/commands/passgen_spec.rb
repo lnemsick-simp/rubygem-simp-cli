@@ -52,15 +52,13 @@ Warning: Missing dependency 'puppetlabs-apt':
   describe '#find_valid_environments' do
     before :each do
       @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
-      @var_dir = File.join(@tmp_dir, 'vardir')
       @puppet_env_dir = File.join(@tmp_dir, 'environments')
       @user  = Etc.getpwuid(Process.uid).name
       @group = Etc.getgrgid(Process.gid).name
       puppet_info = {
         :config => {
-          'user'   => @user,
-          'group'  => @group,
-          'vardir' => @var_dir,
+          'user'            => @user,
+          'group'           => @group,
           'environmentpath' => @puppet_env_dir
         }
       }
@@ -165,21 +163,24 @@ Warning: Missing dependency 'puppetlabs-apt':
     end
   end
 
-=begin
   describe '#run' do
     before :each do
       @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
       @var_dir = File.join(@tmp_dir, 'vardir')
-      @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-      FileUtils.mkdir_p(@password_env_dir)
+      @puppet_env_dir = File.join(@tmp_dir, 'environments')
+      @user  = Etc.getpwuid(Process.uid).name
+      @group = Etc.getgrgid(Process.gid).name
+      puppet_info = {
+        :config => {
+          'user'   => @user,
+          'group'  => @group,
+          'vardir' => @var_dir,
+          'environmentpath' => @puppet_env_dir
+        }
+      }
 
+      allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
       @passgen = Simp::Cli::Commands::Passgen.new
-
-      allow(@passgen).to receive(:`).with('puppet config print vardir --section master 2>/dev/null').and_return(@var_dir  + "\n")
-      process_user = Etc.getpwuid(Process.uid).name
-      process_group = Etc.getgrgid(Process.gid).name
-      allow(@passgen).to receive(:`).with('puppet config print user 2>/dev/null').and_return(process_user)
-      allow(@passgen).to receive(:`).with('puppet config print group 2>/dev/null').and_return(process_group)
     end
 
     after :each do
@@ -188,50 +189,77 @@ Warning: Missing dependency 'puppetlabs-apt':
 
     describe '--list-env option' do
       it 'lists no environments, when no environments exist' do
-        expected_output = <<EOM
-Environments:
-\t
-
-EOM
+        expected_output = "No environments with simp-simplib installed found.\n\n"
         expect { @passgen.run(['--list-env']) }.to output(expected_output).to_stdout
       end
 
-      it 'lists available environments' do
-        FileUtils.mkdir(File.join(@password_env_dir, 'production'))
-        FileUtils.mkdir(File.join(@password_env_dir, 'env1'))
-        FileUtils.mkdir(File.join(@password_env_dir, 'env2'))
-        expected_output = <<EOM
-Environments:
-\tenv1
-\tenv2
-\tproduction
+      it 'lists no environments, when no environments with simp-simplib exist' do
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+        command = 'puppet module list --color=false --environment=production'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_no_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
-EOM
+        expected_output = "No environments with simp-simplib installed found.\n\n"
+        expect { @passgen.run(['--list-env']) }.to output(expected_output).to_stdout
+      end
+
+      it 'lists available environments with simp-simplib installed' do
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+        command = 'puppet module list --color=false --environment=production'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_old_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
+        command = 'puppet module list --color=false --environment=dev'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_no_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
+        command = 'puppet module list --color=false --environment=test'
+        module_list_results = {
+          :status => true,
+          :stdout => module_list_new_simplib,
+          :stderr => missing_deps_warnings
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+        expected_output = <<-EOM
+Environments:
+  production
+  test
+
+        EOM
         expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
       end
 
-      it 'fails when environments cannot be determined from password dir option' do
+      it 'fails if puppet module list command fails' do
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+        command = 'puppet module list --color=false --environment=production'
+        module_list_results = {
+          :status => false,
+          :stdout => '',
+          :stderr => 'some failure message'
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
         expect { @passgen.run(['-E', '-d', @tmp_dir]) }.to raise_error(
           Simp::Cli::ProcessingError,
-          "Password environment directory could not be determined from '#{@tmp_dir}'")
-      end
-
-      it 'fails when environment directory does not exist' do
-        FileUtils.rm_rf(@password_env_dir)
-        expect { @passgen.run(['-E']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password environment directory '#{@password_env_dir}' does not exist")
-      end
-
-      it 'fails when environment directory is not a directory' do
-        FileUtils.rm_rf(@password_env_dir)
-        FileUtils.touch(@password_env_dir)
-        expect { @passgen.run(['-E']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password environment directory '#{@password_env_dir}' is not a directory")
+          "#{command} failed: some failure message")
       end
     end
 
+=begin
     describe '--list-name option' do
       before :each do
         @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
@@ -241,8 +269,8 @@ EOM
       it 'lists no password names, when no names exist' do
         expected_output = <<EOM
 production Names:
-\t
-
+  
+./spec/lib/simp/cli/commands/passgen_spec.rb
 EOM
         expect { @passgen.run(['--list-name']) }.to output(expected_output).to_stdout
       end
@@ -257,10 +285,10 @@ EOM
         FileUtils.touch(File.join(@default_password_dir, 'my.last.name'))
         expected_output = <<EOM
 production Names:
-\t10.0.1.2
-\tmy.last.name
-\tproduction_name
-\tsalt.and.pepper
+  10.0.1.2
+  my.last.name
+  production_name
+  salt.and.pepper
 
 EOM
         expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
@@ -272,7 +300,7 @@ EOM
         FileUtils.touch(File.join(password_dir, 'env1_name1'))
         expected_output = <<EOM
 env1 Names:
-\tenv1_name1
+  env1_name1
 
 EOM
         expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
@@ -795,6 +823,6 @@ EOM
           /No password operation specified./)
       end
     end
-  end
 =end
+  end
 end

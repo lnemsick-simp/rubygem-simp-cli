@@ -53,42 +53,44 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
 
     valid_env_info = find_valid_environments
-    unless valid_env_info.keys.include?(@environment)
-      err_msg = "Invalid Puppet environment '#{@environment}':\n" +
-        "  Cannot have simplib::passgen passwords since 'simp-simplib' is not installed."
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
-    manager = nil
-    if legacy_passgen?(valid_env_info[@environment])
-      # This environment does not have Puppet functions to manage
-      # simplib::passgen passwords. Fallback to how these passwords were
-      # managed, before.
-      # TODO See if we can use functions from another environment that does
-      # have the passgen-managing functions?  The simplib::passgen::legacy
-      # functions would have to be reworked to allow overriding the environment.
-      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
-        @password_dir)
-    else
-      # This environment has Puppet functions to manage simplib::passgen
-      # passwords, whether they are stored in the legacy directory for the
-      # environment or in a key/value store via libkv.  The functions figure
-      # out where the passwords are stored and executes appropriate logic.
-      manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
-        @backend, @folder)
-    end
-
-    case @operation
-    when :show_environment_list
+    if @operation == :show_environment_list
       show_environment_list(valid_env_info.keys)
-    when :show_name_list
-      manager.show_name_list
-    when :show_passwords
-      manager.show_passwords
-    when :set_passwords
-      manager.set_passwords(@names, @password_gen_options)
-    when :remove_passwords
-      manager.remove_passwords(@names, @force_remove)
+    else
+      unless valid_env_info.keys.include?(@environment)
+        err_msg = "Invalid Puppet environment '#{@environment}': simp-simplib is not installed"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+
+      # construct the correct manager to do the work
+      manager = nil
+      if legacy_passgen?(valid_env_info[@environment])
+        # This environment does not have Puppet functions to manage
+        # simplib::passgen passwords. Fallback to how these passwords were
+        # managed, before.
+        # TODO See if we can use functions from another environment that does
+        # have the passgen-managing functions?  The simplib::passgen::legacy
+        # functions would have to be reworked to allow overriding the environment.
+        manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
+          @password_dir)
+      else
+        # This environment has Puppet functions to manage simplib::passgen
+        # passwords, whether they are stored in the legacy directory for the
+        # environment or in a key/value store via libkv.  The functions figure
+        # out where the passwords are stored and executes appropriate logic.
+        manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
+          @backend, @folder)
+      end
+
+      case @operation
+      when :show_name_list
+        manager.show_name_list
+      when :show_passwords
+        manager.show_passwords
+      when :set_passwords
+        manager.set_passwords(@names, @password_gen_options)
+      when :remove_passwords
+        manager.remove_passwords(@names, @force_remove)
+      end
     end
   end
 
