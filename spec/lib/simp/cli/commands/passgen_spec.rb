@@ -813,6 +813,7 @@ EOM
           "Password directory '#{@default_password_dir}' is not a directory")
       end
     end
+=end
 
     describe 'option validation' do
       it 'requires operation option to be specified' do
@@ -823,6 +824,5 @@ EOM
           /No password operation specified./)
       end
     end
-=end
   end
 end
