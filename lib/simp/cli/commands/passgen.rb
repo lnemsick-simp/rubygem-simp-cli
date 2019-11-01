@@ -54,18 +54,19 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
     @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
 
-    valid_env_info = find_valid_environments
     if @operation == :show_environment_list
-      show_environment_list(valid_env_info.keys)
+      valid_envs = find_valid_environments
+      show_environment_list(valid_envs.keys)
     else
-      unless valid_env_info.keys.include?(@environment)
+      simplib_version = get_simplib_version(@environment)
+      if simplib_version.nil?
         err_msg = "Invalid Puppet environment '#{@environment}': simp-simplib is not installed"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
 
       # construct the correct manager to do the work
       manager = nil
-      if legacy_passgen?(valid_env_info[@environment])
+      if legacy_passgen?(simplib_version)
         # This environment does not have Puppet functions to manage
         # simplib::passgen passwords. Fallback to how these passwords were
         # managed, before.
@@ -87,7 +88,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       when :show_name_list
         manager.show_name_list
       when :show_passwords
-        manager.show_passwords
+        manager.show_passwords(@names)
       when :set_passwords
         manager.set_passwords(@names, @password_gen_options)
       when :remove_passwords
@@ -113,22 +114,31 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     # only keep environments that have simplib installed
     env_info = {}
     environments.sort.each do |env|
-      command = "puppet module list --color=false --environment=#{env}"
-      result = Simp::Cli::ExecUtils.run_command(command)
-
-      if result[:status]
-        regex = /\s+simp-simplib\s+\(v([0-9]+\.[0-9]+\.[0-9]+)\)/m
-        match = result[:stdout].match(regex)
-        unless match.nil?
-          env_info[env] = match[1] # version of simp-simplib
-        end
-      else
-        err_msg = "#{command} failed: #{result[:stderr]}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
+      simplib_version = get_simplib_version(env)
+      env_info[env] =simplib_version unless simplib_version.nil?
     end
 
     env_info
+  end
+
+  # @return the version of simplib in the environment or nil if not present
+  # @raise Simp::Cli::ProcessingError if `puppet module list` fails, for example
+  #   if the environment does not exist
+  def get_simplib_version(env)
+    simplib_version = nil
+    command = "puppet module list --color=false --environment=#{env}"
+    result = Simp::Cli::ExecUtils.run_command(command)
+
+    if result[:status]
+      regex = /\s+simp-simplib\s+\(v([0-9]+\.[0-9]+\.[0-9]+)\)/m
+      match = result[:stdout].match(regex)
+      simplib_version = match[1] unless match.nil?
+    else
+      err_msg = "#{command} failed: #{result[:stderr]}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    simplib_version
   end
 
   # @returns whether the environment has an old version of simplib
@@ -152,10 +162,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator '  # Show a list of the password names in the production environment'
       opts.separator '  simp passgen -l'
       opts.separator ''
-      opts.separator '  # Show password details for specific passwords in the dev environment'
+      opts.separator '  # Show password info for specific passwords in the dev environment'
       opts.separator '  simp passgen -e dev -n NAME1,NAME2,NAME3'
       opts.separator ''
-      opts.separator '  # Show password details for a password in a sub-folder in a key/value store.'
+      opts.separator '  # Show password info for a password in a sub-folder in a key/value store.'
       opts.separator "  # This example is for a password from simplib::passgen('app1/admin')"
       opts.separator '  simp passgen -f app1 -n admin'
       opts.separator ''
@@ -207,6 +217,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @names = names
       end
 
+#FIXME add a --[no]--brief option for showing password info, defaults to brief
+
+#FIXME add a debug or verbose option
+#
       opts.on('-h', '--help', 'Print this message.') do
         puts opts
         @help_requested = true

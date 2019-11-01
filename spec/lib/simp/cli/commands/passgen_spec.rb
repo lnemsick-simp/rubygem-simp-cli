@@ -339,6 +339,10 @@ EOM
     end
 
 =begin
+    # The list name operation is fully tested in the objects that implement
+    # this functionality.  This test is a subset of those tests with the intent
+    # to verify the correct object was constructed and used and its results are
+    # properly reported.
     describe '--name option' do
       before :each do
         @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')

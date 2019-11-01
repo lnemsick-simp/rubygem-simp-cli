@@ -2,6 +2,7 @@ require 'highline/import'
 require 'simp/cli/exec_utils'
 require 'simp/cli/passgen/utils'
 #require 'simp/cli/utils'
+require 'tmpdir'
 
 class Simp::Cli::Passgen::PasswordManager
 
@@ -14,6 +15,8 @@ class Simp::Cli::Passgen::PasswordManager
     @location = "#{@environment} Environment"
     @location += " in #{@backend} backend" unless @backend.nil?
     @custom_options = @backend.nil? ? nil : "{ 'backend' => '#{@backend}' }"
+
+    @list = nil
   end
 
   #####################################################
@@ -30,6 +33,9 @@ class Simp::Cli::Passgen::PasswordManager
   #
   def remove_passwords(names, force_remove=false)
     validate_names(names)
+
+    # Load in available password info
+    list = password_list
 
     names.each do |name|
       remove = force_remove
@@ -122,20 +128,24 @@ class Simp::Cli::Passgen::PasswordManager
 
   # Prints the list of password names for the environment to the console
   def show_name_list
-    validate_password_dir
-    names = get_names
-    prefix = @custom_password_dir ? @password_dir : @environment
-    puts "#{prefix} Names:\n  #{names.join("\n  ")}"
+    # empty result means no keys found
+    names = password_list.key?('keys') ? password_list['keys'].keys : []
+    puts "#{@location} Names:\n  #{names.sort.join("\n  ")}"
     puts
   end
+
   # Prints password info for the environment to the console.
   #
   # For each password name, prints its current value, and when present, its
   # previous value.
   #
+  # TODO:  Print out all other available information.
+  #
   def show_passwords(names)
-    validate_password_dir
     validate_names(names)
+
+    # Load in available password info
+    list = password_list
 
     prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
     title =  "#{prefix} Passwords"
@@ -143,28 +153,22 @@ class Simp::Cli::Passgen::PasswordManager
     puts '='*title.length
     errors = []
     names.each do |name|
-      Dir.chdir(@password_dir) do
-        begin
-          puts "Name: #{name}"
-          current_password = File.read("#{@password_dir}/#{name}")
-          last_password = nil
-          last_password_file = "#{@password_dir}/#{name}.last"
-          if File.exists?(last_password_file)
-            last_password = File.read(last_password_file)
-          end
-          puts "  Current:  #{current_password}"
-          puts "  Previous: #{last_password}" if last_password
-        rescue Exception => e
-          # Will report all problem details at end.
-          puts '  UNKNOWN'
-          errors << "'#{name}': #{e}"
+      puts "Name: #{name}"
+      if list['keys'].key?(name)
+        info = list['keys'][name]
+        puts "  Current:  #{info['value']['password']}"
+        unless info['metadata']['history'].empty?
+          puts "  Previous: #{info['metadata']['history'][0][0]}"
         end
+      else
+        puts '  UNKNOWN'
+        errors << name
       end
       puts
     end
 
     unless errors.empty?
-      err_msg = "Failed to read password info for the following:\n  #{errors.join("\n  ")}"
+      err_msg = "Failed to fetch password info for the following:\n  #{errors.join("\n  ")}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
@@ -172,20 +176,55 @@ class Simp::Cli::Passgen::PasswordManager
   #####################################################
   # Helpers
   #####################################################
+
+  # @param manifest Contents of the manifest to be applied
+  # @param name Basename of the manifest
   #
-  def apply_manifest(manifest)
-    cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c 'puppet apply"
-    result = Simp::Cli::ExecUtils.run_command(cmd)
+  def apply_manifest(manifest, name = 'passgen')
+    result = {}
+    Dir.mktmpdir( File.basename( __FILE__ ) ) do |dir|
+      manifest_file = File.join(dir, "#{name}.pp")
+      File.open(manifest_file, 'w') { |file| file.puts manifest }
+      puppet_apply = [
+        'puppet apply',
+        '--color=false',
+        "--environment=#{@environment}",
+        # this is required for finding the correct vardir when either legacy
+        # password files or files from the auto-default key/value store are
+        # being processed
+        "--vardir=#{@puppet_info[:config]['vardir']}",
+        manifest_file
+      ].join(' ')
+
+      # umask and sg only needed for operations that modify files
+      # FIXME  Would really like this to be handled some other way for non-root users
+      cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c '#{puppet_apply}'"
+      result = Simp::Cli::ExecUtils.run_command(cmd)
+    end
+
     unless result[:status]
       err_message = "#{cmd} failed: #{result[:stderr]}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
+
+    result
   end
 
+  def extract_yaml_from_log(log)
+    # get rid of initial Notice text
+    yaml_string = log.gsub(/^.*?\-\-\-/m,'---')
 
-  def get_names
+    # get rid of trailing Notice text
+    yaml_lines = yaml_string.split("\n").delete_if { |line| line =~ /^Notice:/ }
+    yaml_string = yaml_lines.join("\n")
+    begin
+      yaml = YAML.load(yaml_string)
+      return yaml
+    rescue Exception =>e
+      err_msg = "Failed to extract YAML: #{e}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
   end
-
 
   def get_new_password(options)
     password = ''
@@ -223,19 +262,61 @@ class Simp::Cli::Passgen::PasswordManager
     length
   end
 
+  # Retrieve and validate a list of a password folder
+  #
+  # @raise if manifest apply to retrieve the list fails, the manifest result
+  #   cannot be parsed as YAML, or the result does not have the required keys
+  def password_list
+    return @password_list unless @password_list.nil?
+
+    args = ''
+    if @custom_options
+      if @folder
+        args = "'#{@folder}', #{@custom_options}"
+      else
+        args = "'/', #{@custom_options}"
+      end
+    end
+
+    manifest = "notice(to_yaml(simplib::passgen::list(#{args})))"
+    result = apply_manifest(manifest, 'list')
+    list = extract_yaml_from_log(result[:stdout])
+
+    # make sure results are something we can process...should only have a problem
+    # if simplib::passgen::list changes and this software was not updated
+    unless valid_password_list?(list)
+      err_msg = "Invalid result returned from simplib::passgen::list:\n\n#{list}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    @password_list = list
+  end
+
+  def valid_password_list?(list)
+    valid = true
+    unless list.empty?
+      if list.key?('keys')
+        list['keys'].each do |name, info|
+          unless (
+              info.key?('value') && info['value'].key?('password') &&
+              info.key?('metadata') && info['metadata'].key?('history') )
+            valid = false
+            break
+          end
+        end
+      else
+        valid = false
+      end
+    end
+
+    valid
+  end
+
+  # @raise Simp::Cli::ProcessingError if names is empty
   def validate_names(names)
     if names.empty?
       err_msg = 'No names specified.'
       raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
-    actual_names = get_names
-    names.each do |name|
-      unless actual_names.include?(name)
-        #FIXME print out names nicely (e.g., max 8 per line)
-        err_msg = "Invalid name '#{name}' selected.\n\nValid names: #{actual_names.join(', ')}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
     end
   end
 
