@@ -32,37 +32,40 @@ class Simp::Cli::Passgen::PasswordManager
   #   the user to verify the removal operation
   #
   def remove_passwords(names, force_remove=false)
-    validate_names(names)
+    return if names.empty?
 
-    # Load in available password info
-    list = password_list
-
-    names.each do |name|
+    errors = []
+    names.sort.each do |name|
       remove = force_remove
       unless remove
         prompt = "Are you sure you want to remove all entries for '#{name}'?".bold
         remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
 
+      fullname = @folder.nil? ? name : "#{@folder}/#{name}"
       if remove
-        fullname = @folder.nil? ? name : "#{@folder}/#{name}"
-        begin
-          args = "'#{fullname}'"
-          args += ", #{@custom_options}" if @custom_options
-          manifest = "simplib::passgen::remove(#{args})"
-          apply_manifest(manifest)
-          puts "Deleted #{fullname} in #{@location}"
-        rescue Exception => e
-          # Will report all problems at end.
-          errors << "'#{fullname}': #{e}"
+        args = "'#{fullname}'"
+        args += ", #{@custom_options}" if @custom_options
+        manifest = <<-EOM
+          if empty(simplib::passgen::get(#{args})) {
+            fail('password not found')
+          } else {
+            simplib::passgen::remove(#{args})
+          }
+        EOM
+        result = apply_manifest(manifest, 'remove')
+        if result[:status]
+          puts "Deleted #{fullname} in the #{@location}"
+        else
+          errors << "'#{fullname}': #{extract_manifest_error(result[:stderr])}"
         end
+      else
+        puts "Skipping #{fullname}"
       end
-
-      puts
     end
 
     unless errors.empty?
-      err_msg = "Failed to delete the following password keys in #{@location}:\n  #{errors.join("\n  ")}"
+      err_msg = "Failed to delete the following password keys in the #{@location}:\n  #{errors.join("\n  ")}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
@@ -96,7 +99,7 @@ class Simp::Cli::Passgen::PasswordManager
     names.each do |name|
       next if name.strip.empty?
 
-      puts "Processing Name '#{name}' in #{@location}"
+      puts "Processing Name '#{name}' in the #{@location}"
       begin
         gen_options = options.dup
         gen_options[:length] = get_password_length(password_filename, options)
@@ -128,9 +131,12 @@ class Simp::Cli::Passgen::PasswordManager
 
   # Prints the list of password names for the environment to the console
   def show_name_list
-    # empty result means no keys found
-    names = password_list.key?('keys') ? password_list['keys'].keys : []
-    puts "#{@location} Names:\n  #{names.sort.join("\n  ")}"
+    if password_list.key?('keys')
+      puts "#{@location} Names:\n  #{password_list['keys'].keys.sort.join("\n  ")}"
+    else
+      puts "No passwords found in the #{@location}"
+    end
+
     puts
   end
 
@@ -142,9 +148,16 @@ class Simp::Cli::Passgen::PasswordManager
   # TODO:  Print out all other available information.
   #
   def show_passwords(names)
-    validate_names(names)
+#FIXME do we want to fail, emit a message...
+    return if names.empty?
 
     # Load in available password info
+# FIXME Do we really want to do this if it is not needed?
+#  For large number of passwords, this may be expensive.  Need to figure
+#  out what is more expensive...applying manifest for each name or applying
+#  manifest once for all.  See remove_passwords for example of applying individual
+#  manifests that fail if a name does not exist.
+#
     list = password_list
 
     prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
@@ -179,9 +192,13 @@ class Simp::Cli::Passgen::PasswordManager
 
   # @param manifest Contents of the manifest to be applied
   # @param name Basename of the manifest
+  # @param fail_on_error Whether to raise upon manifest failure.
   #
-  def apply_manifest(manifest, name = 'passgen')
+  # @raise if manifest apply fails and fail_on_error is true
+  #
+  def apply_manifest(manifest, name = 'passgen', fail_on_error = false)
     result = {}
+    cmd = nil
     Dir.mktmpdir( File.basename( __FILE__ ) ) do |dir|
       manifest_file = File.join(dir, "#{name}.pp")
       File.open(manifest_file, 'w') { |file| file.puts manifest }
@@ -200,14 +217,45 @@ class Simp::Cli::Passgen::PasswordManager
       # FIXME  Would really like this to be handled some other way for non-root users
       cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c '#{puppet_apply}'"
       result = Simp::Cli::ExecUtils.run_command(cmd)
+      result[:cmd] = cmd
     end
 
-    unless result[:status]
-      err_message = "#{cmd} failed: #{result[:stderr]}"
+    if !result[:status] && fail_on_error
+      err_message = [
+        "#{cmd} failed:",
+        '-'*20,
+        manifest,
+        '-'*20,
+        result[:stderr]
+      ].join("\n")
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
     result
+  end
+
+#Error: Evaluation Error: Error while evaluating a Function Call, 'liztest' password not found (file: /root/remove.pp, line: 4, column: 3) on node puppet.simp.test
+#Error: Evaluation Error: Error while evaluating a Function Call, libkv Configuration Error for libkv::put with key='key': No libkv backend 'oops' with 'id' and 'type' attributes has been configured: {"backends"=>{"default"=>{"type"=>"file", "id"=>"default"}}, "backend"=>"oops", "softfail"=>false, "environment"=>"production"} (file: /root/tmp.pp, line: 1, column: 1) on node puppet.simp.test
+#
+  def extract_manifest_error(errlog)
+    err_lines = errlog.split("\n").delete_if { |line| !line.start_with?('Error: ') }
+
+    # Expecting only 1 'Function Call' error from a fail() or a simplib::passgen::xxx call
+    # FIXME This is fragile... use PAL for puppet manifest operations instead
+    err_msg = nil
+
+    if err_lines.empty?
+     err_msg = 'Unknown error'
+    else
+      match = err_lines[0].match(/.*?Function Call, (.*?) \(file: .*?, line: .*/)
+      if match
+        err_msg = match[1]
+      else
+        err_msg = err_lines[0]
+      end
+    end
+
+    err_msg
   end
 
   def extract_yaml_from_log(log)
@@ -262,6 +310,7 @@ class Simp::Cli::Passgen::PasswordManager
     length
   end
 
+
   # Retrieve and validate a list of a password folder
   #
   # @raise if manifest apply to retrieve the list fails, the manifest result
@@ -278,8 +327,10 @@ class Simp::Cli::Passgen::PasswordManager
       end
     end
 
+    # simplib::passgen::list only fails with real problems, so be sure to
+    # raise if it fails!
     manifest = "notice(to_yaml(simplib::passgen::list(#{args})))"
-    result = apply_manifest(manifest, 'list')
+    result = apply_manifest(manifest, 'list', true)
     list = extract_yaml_from_log(result[:stdout])
 
     # make sure results are something we can process...should only have a problem
@@ -310,14 +361,6 @@ class Simp::Cli::Passgen::PasswordManager
     end
 
     valid
-  end
-
-  # @raise Simp::Cli::ProcessingError if names is empty
-  def validate_names(names)
-    if names.empty?
-      err_msg = 'No names specified.'
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
   end
 
   def validate_set_config(names, options)
