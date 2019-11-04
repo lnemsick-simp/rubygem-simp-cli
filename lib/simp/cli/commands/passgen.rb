@@ -12,6 +12,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   DEFAULT_AUTO_GEN_PASSWORDS = false
   DEFAULT_PASSWORD_LENGTH    = 32
   MINIMUM_PASSWORD_LENGTH    = 8
+  DEFAULT_COMPLEXITY         = 0
+  DEFAULT_COMPLEX_ONLY       = false
+  DEFAULT_FORCE_VALUE        = false
+  DEFAULT_FORCE_REMOVE       = false
 
   # First simplib version in which simplib::passgen could use libkv
   LIBKV_SIMPLIB_VERSION = '4.0.0'
@@ -24,16 +28,17 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     @password_dir = nil  # fully qualified path to legacy passgen dir
     @names = Array.new
     @password_gen_options = {
-     :auto_gen       => DEFAULT_AUTO_GEN_PASSWORDS,
-     :force_value    => false,  # whether to accept passwords from user without validation
-     :length         => nil,
-     :default_length => DEFAULT_PASSWORD_LENGTH,
-     :minimum_length => MINIMUM_PASSWORD_LENGTH
-# FIXME: Do we need the next 2?
-#    :complexity = nil
-#    :complex_only = nil
+     :auto_gen             => DEFAULT_AUTO_GEN_PASSWORDS,
+     :force_value          => DEFAULT_FORCE_VALUE,  # whether to accept user passwords without validation
+     :length               => nil,
+     :default_length       => DEFAULT_PASSWORD_LENGTH,
+     :minimum_length       => MINIMUM_PASSWORD_LENGTH,
+     :complexity           => nil,
+     :default_complexity   => DEFAULT_COMPLEXITY,
+     :complex_only         => nil,
+     :default_complex_only => DEFAULT_COMPLEX_ONLY
     }
-    @force_remove = false
+    @force_remove = DEFAULT_FORCE_REMOVE
   end
 
   #####################################################
@@ -237,11 +242,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @password_gen_options[:auto_gen] = auto_gen
       end
 
-      opts.on('--complexity', Integer,
+      opts.on('--complexity COMPLEXITY', Integer,
             'Password complexity to use when auto-generated.',
             'For existing passwords stored a libkv key/value store, defaults to the current password complexity.',
-#DEFAULT
-            "Otherwise, defaults to '0'.",
+            "Otherwise, defaults to '#{DEFAULT_COMPLEXITY}'.",
             'See simplib::passgen documentation for details') do |complexity|
         @password_gen_options[:complexity] = complexity
       end
@@ -249,8 +253,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.on('--[no-]complex-only',
             'Whether to only use only complex characters when password is auto-generated.',
             'For existing passwords in a libkv key/value store, defaults to the current password setting.',
-#DEFAULT
-            "Otherwise, defaults to 'false'.",
+            "Otherwise, defaults to '#{DEFAULT_COMPLEX_ONLY}'.",
             'See simplib::passgen documentation for details') do |complex_only|
         @password_gen_options[:complex_only] = complex_only
       end
@@ -259,7 +262,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.on('--backend BACKEND',
             'Specific libkv backend to query for the specified environment.',
             'Defaults to the default backend for simplib::passgen.',
-            'Only needed for passwords from simplib::passgen calls with custom libkv settings.') do |backend|
+            '**Only** needed for passwords from simplib::passgen calls with custom libkv settings.') do |backend|
         @backend = backend
       end
 
@@ -283,19 +286,22 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @folder = folder
       end
 
-      opts.on('--force-remove',
+      opts.on('--[no-]force-remove',
             'Remove passwords without prompting user to confirm.',
             'If unspecified, user will be prompted to confirm the',
-            'removal action for each password.') do |force_remove|
+            'removal action for each password.',
+            "Defaults to #{DEFAULT_FORCE_REMOVE}."
+            ) do |force_remove|
         @force_remove = force_remove
       end
 
-      opts.on('--force-value',
-            'Disable validation of user-entered passwords.') do |force_value|
+      opts.on('--[no-]force-value',
+            'Disable validation of user-entered passwords.',
+            "Defaults to #{DEFAULT_FORCE_VALUE}.") do |force_value|
         @password_gen_options[:force_value] = force_value
       end
 
-      opts.on('--length', Integer,
+      opts.on('--length LENGTH', Integer,
             'Password length to use when auto-generated.',
             'Defaults to the current password length, when password is present',
             "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}",

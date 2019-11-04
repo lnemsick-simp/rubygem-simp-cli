@@ -93,32 +93,26 @@ class Simp::Cli::Passgen::PasswordManager
   def set_passwords(names, options)
     validate_set_config(names, options)
 
-    puppet_user = @puppet_info[:config]['user']
-    puppet_group = @puppet_info[:config]['group']
     errors = []
-    names.each do |name|
+    names.sort.each do |name|
       next if name.strip.empty?
 
-      puts "Processing Name '#{name}' in the #{@location}"
+      fullname = @folder.nil? ? name : "#{@folder}/#{name}"
+      puts "Processing Name '#{fullname}' in the #{@location}"
       begin
-        gen_options = options.dup
-        gen_options[:length] = get_password_length(password_filename, options)
-        password, generated = get_new_password(gen_options)
-        if generated
-          puts "  Password set to '#{password}'" if generated
+        password_options = merge_password_options(fullname, options)
+        password = nil
+        if options[:auto_gen]
+          password = generate_and_set_password(fullname, password_options)
         else
-          puts '  Password set'
+          password = get_and_set_password(fullname, password_options)
         end
+
+        puts "  Password set to '#{password}'"
+
      # Will report all problems at end.
-      rescue Simp::Cli::ProcessingError => err
+      rescue Exception => err
         errors << "'#{name}': #{err.message}"
-      rescue ArgumentError => err
-        # This will happen if group does not exist
-        err_msg = "'#{name}': Could not set password file ownership for '#{password_filename}': #{err}"
-        errors << err_msg
-      rescue SystemCallError => err
-        err_msg = "'#{name}': Error occurred while writing '#{password_filename}': #{err}"
-        errors << err_msg
       end
 
     end
@@ -132,9 +126,20 @@ class Simp::Cli::Passgen::PasswordManager
   # Prints the list of password names for the environment to the console
   def show_name_list
     if password_list.key?('keys')
-      puts "#{@location} Names:\n  #{password_list['keys'].keys.sort.join("\n  ")}"
+      title = nil
+      if @folder
+        title = "#{@folder}/ #{@location} Names"
+      else
+        title = "#{@location} Names"
+      end
+
+      puts "#{title}:\n  #{password_list['keys'].keys.sort.join("\n  ")}"
     else
-      puts "No passwords found in the #{@location}"
+      if @folder
+        puts "No passwords found in #{@folder}/ in the #{@location}"
+      else
+        puts "No passwords found in the #{@location}"
+      end
     end
 
     puts
@@ -148,7 +153,6 @@ class Simp::Cli::Passgen::PasswordManager
   # TODO:  Print out all other available information.
   #
   def show_passwords(names)
-#FIXME do we want to fail, emit a message...
     return if names.empty?
 
     # Load in available password info
@@ -160,8 +164,13 @@ class Simp::Cli::Passgen::PasswordManager
 #
     list = password_list
 
-    prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
-    title =  "#{prefix} Passwords"
+    title = nil
+    if @folder
+      title = "#{@folder}/ #{@location} Passwords"
+    else
+      title = "#{@location} Passwords"
+    end
+
     puts title
     puts '='*title.length
     errors = []
@@ -191,7 +200,7 @@ class Simp::Cli::Passgen::PasswordManager
   #####################################################
 
   # @param manifest Contents of the manifest to be applied
-  # @param name Basename of the manifest
+  # @param name Basename of the manifest file
   # @param fail_on_error Whether to raise upon manifest failure.
   #
   # @raise if manifest apply fails and fail_on_error is true
@@ -213,15 +222,17 @@ class Simp::Cli::Passgen::PasswordManager
         manifest_file
       ].join(' ')
 
-      # umask and sg only needed for operations that modify files
-      # FIXME  Would really like this to be handled some other way for non-root users
+      # umask and sg only needed for operations that modify/remove files
+      # (i.e., legacy passgen and libkv-enabled passgen using the file plugin)
+      # FIXME: Need to figure out how to handle 'group' when the manifest apply
+      #        is not run as root
       cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c '#{puppet_apply}'"
       result = Simp::Cli::ExecUtils.run_command(cmd)
       result[:cmd] = cmd
     end
 
     if !result[:status] && fail_on_error
-      err_message = [
+      err_msg = [
         "#{cmd} failed:",
         '-'*20,
         manifest,
@@ -232,6 +243,14 @@ class Simp::Cli::Passgen::PasswordManager
     end
 
     result
+  end
+
+  def current_password_info(fullname)
+    args = "'#{fullname}'"
+    args += ", #{@custom_options}" if @custom_options
+    manifest = "notice(to_yaml(simplib::passgen::get(#{args})))"
+    result = apply_manifest(manifest, 'get_current', true)
+    extract_yaml_from_log(result[:stdout])
   end
 
 #Error: Evaluation Error: Error while evaluating a Function Call, 'liztest' password not found (file: /root/remove.pp, line: 4, column: 3) on node puppet.simp.test
@@ -274,40 +293,100 @@ class Simp::Cli::Passgen::PasswordManager
     end
   end
 
-  def get_new_password(options)
-    password = ''
-    generated = false
-    if options[:auto_gen]
-      password = Simp::Cli::Utils.generate_password(options[:length])
-      generated = true
-    else
-      password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
-    end
+  def generate_and_set_password(fullname, options)
+    manifest =<<-EOM
+      [ $password, $salt ] = simplib::passgen::gen_password_and_salt(
+        #{options[:length]},
+        #{options[:complexity]},
+        #{options[:complex_only]},
+        30) # generate timeout seconds
 
-    [ password, generated ]
+      $password_options = {
+      'complexity'   => #{options[:complexity]},
+      'complex_only' => #{options[:complex_only]},
+      'user'         => '#{@puppet_info[:config]['user']}'
+      }
+
+     simplib::passgen::set('#{fullname}', $password, $salt, $password_options)
+     $for_log = { 'password' => $password }
+     notice(to_yaml($for_log))
+    EOM
+    result = apply_manifest(manifest, 'get_current', true)
+    extract_yaml_from_log(result[:stdout])['password']
   end
 
-  def get_password_length
-    length = nil
+  # get a password from user and then generate a salt for it
+  # and set both the password and salt
+  def get_and_set_password(fullname, options)
+    password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
+    # NOTES:
+    # - 'complexity' and 'complex_only' are required in libkv mode, and ignored
+    #   in legacy mode
+    # - 'user' is used in legacy mode to make sure generated password files are
+    #   owned by the required user, is required when this code is run as root,
+    #   and is ignored in libkv mode
+    #   - Legacy passgen directories/files are owned by the user compiling
+    #     the manifest (puppet:puppet for the puppetserver) and have 750 and 640
+    #     permissions, respectively.
+    #   - Legacy passgen code has a sanity check that fails if any of its
+    #     directories/files are not owned by the user:group compiling the manifest.
+    #   - libkv's file plugin directories/files are owned by the user compiling
+    #     the manifest (puppet:puppet for the puppetserver) with 770 and
+    #     660 permissions, respectively ==> root can create directories/files
+    #     with puppet applies within 'sg puppet'.
+    # - Odd looking escape of single quotes below is required because
+    #   \' is a back reference in gsub.
+    # FIXME: Need to figure out how to handle 'user' when the manifest apply
+    #        is not run as root
+    manifest = <<-EOM
+      $salt = simplib::passgen::gen_salt(30)  # 30 second generate timeout
+      $password_options = {
+      'complexity'   => #{options[:complexity]},
+      'complex_only' => #{options[:complex_only]},
+      'user'         => '#{@puppet_info[:config]['user']}'
+      }
+
+      simplib::passgen::set('#{fullname}', '#{password.gsub("'", "\\\\'")}',
+        $salt, $password_options)
+    EOM
+
+    apply_manifest(manifest, name = 'set_user_password', true)
+    password
+  end
+
+  def merge_password_options(fullname, options)
+    password_options = options.dup
+    current = current_password_info(fullname)
+
     if options[:length].nil?
-      if File.exist?(password_file)
-        begin
-          password = File.read(password_file).chomp
-          length = password.length
-        rescue Exception => e
-          err_msg = "Error occurred while reading '#{password_file}': #{e}"
-          raise Simp::Cli::ProcessingError.new(err_msg)
-        end
+      if current.key?('value')
+        password_options[:length] = current['value']['password'].length
+      else
+        password_options[:length] = options[:default_length]
       end
-    else
-      length = options[:length]
     end
 
-    if length.nil? || (length < options[:minimum_length])
-      length = options[:default_length]
+    if options[:complexity].nil?
+      if ( current.key?('metadata') && current['metadata'].key?('complexity') )
+        password_options[:complexity] = current['metadata']['complexity']
+      else
+        password_options[:complexity] = options[:default_complexity]
+      end
     end
 
-    length
+    if options[:complex_only].nil?
+      if ( current.key?('metadata') && current['metadata'].key?('complex_only') )
+        password_options[:complex_only] = current['metadata']['complex_only']
+      else
+        password_options[:complex_only] = options[:default_complex_only]
+      end
+    end
+
+    if password_options[:length] < options[:minimum_length]
+      password_options[:length] = options[:default_length]
+    end
+
+    password_options
   end
 
 
@@ -319,12 +398,11 @@ class Simp::Cli::Passgen::PasswordManager
     return @password_list unless @password_list.nil?
 
     args = ''
+    folder = @folder.nil? ? '/' : @folder
     if @custom_options
-      if @folder
-        args = "'#{@folder}', #{@custom_options}"
-      else
-        args = "'/', #{@custom_options}"
-      end
+      args = "'#{folder}', #{@custom_options}"
+    else
+      args = "'#{folder}'"
     end
 
     # simplib::passgen::list only fails with real problems, so be sure to
@@ -364,13 +442,6 @@ class Simp::Cli::Passgen::PasswordManager
   end
 
   def validate_set_config(names, options)
-    validate_password_dir
-
-    if names.empty?
-      err_msg = 'No names specified.'
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
     unless options.key?(:auto_gen)
       err_msg = 'Missing :auto_gen option'
       raise Simp::Cli::ProcessingError.new(err_msg)
@@ -388,6 +459,16 @@ class Simp::Cli::Passgen::PasswordManager
 
     unless options.key?(:minimum_length)
       err_msg = 'Missing :minimum_length option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_complexity)
+      err_msg = 'Missing :default_complexity option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_complex_only)
+      err_msg = 'Missing :default_complex_only option'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
