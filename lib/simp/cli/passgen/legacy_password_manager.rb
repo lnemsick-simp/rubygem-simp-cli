@@ -15,7 +15,12 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     @environment = environment
     @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
     if password_dir.nil?
-      @password_dir = get_password_dir
+      password_env_dir = File.join(
+        @puppet_info[:config]['vardir'], 'simp', 'environments')
+
+      @password_dir = File.join(
+        password_env_dir, @environment, 'simp_autofiles', 'gen_passwd')
+
       @location = "'#{@environment}' Environment"
     else
       @password_dir = password_dir
@@ -111,7 +116,6 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     info
   end
 
-
   # Remove a password
   #
   # Removes password and salt files for current and previous password
@@ -187,9 +191,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     password_filename = File.join(@password_dir, name)
     password = nil
     begin
-      gen_options = options.dup
-      gen_options[:length] = get_password_length(password_filename, options)
-      password, generated = get_new_password(gen_options)
+      password_options = merge_password_options(password_filename, options)
+      password, generated = get_new_password(password_options)
       if File.exist?(password_filename)
         backup_password_files(password_filename)
       else
@@ -212,6 +215,15 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #########################################################
   # Helpers
   #########################################################
+
+  # Backup a password file and its salt file
+  #
+  # Assumes password file exists!
+  #
+  # @param password_filename Fully qualified name of password file
+  #
+  # @raise Simp::Cli::ProcessingError if a file move fails
+  #
   def backup_password_files(password_filename)
     begin
       FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
@@ -225,6 +237,13 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
   end
 
+  # Generate password or query user for password
+  #
+  # @param options options for password generation and validation
+  #
+  # @return [ password, <whether generated> ]
+  # @raise Exception of generation/query fails
+  #
   def get_new_password(options)
     password = ''
     generated = false
@@ -238,12 +257,17 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     [ password, generated ]
   end
 
-  def get_password_dir
-    password_env_dir = File.join(@puppet_info[:config]['vardir'], 'simp', 'environments')
-    File.join(password_env_dir, @environment, 'simp_autofiles', 'gen_passwd')
-  end
-
-  def get_password_length(password_file, options)
+  # @return copy of options with :length set to a valid value
+  #
+  # - Use length of current password, if the password exists and the length
+  #   is not too short
+  # - Use the default length, if :length is set and too short or if :length
+  #   is not set and either the current password does not exist, or the
+  #   current password is too short
+  # - Assumes options have been validated with validate_set_config()
+  #
+  def merge_password_options(password_file, options)
+    password_options = options.dup
     length = nil
     if options[:length].nil?
       if File.exist?(password_file)
@@ -263,9 +287,18 @@ class Simp::Cli::Passgen::LegacyPasswordManager
       length = options[:default_length]
     end
 
-    length
+    password_options[:length] = length
+    password_options
   end
 
+  # Verifies options contains the following keys:
+  # - :auto_gen
+  # - :force_value
+  # - :default_length
+  # - :minimum_length
+  #
+  # @raise Simp::Cli::ProcessingError if any of the required options is missing
+  #
   def validate_set_config(options)
     unless options.key?(:auto_gen)
       err_msg = 'Missing :auto_gen option'

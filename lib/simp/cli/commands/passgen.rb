@@ -176,7 +176,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator '  # by the user.'
       opts.separator '  simp passgen -s NAME1,NAME2,NAME3'
       opts.separator ''
-      opts.separator '  # Automatically regenerate specific passwords in the production environment'
+      opts.separator '  # Automatically (re)generate specific passwords in the production environment'
       opts.separator '  simp passgen --auto-generate -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator 'COMMANDS:'

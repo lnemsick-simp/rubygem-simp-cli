@@ -391,8 +391,8 @@ Failed to delete the following password files:
         'Missing :auto_gen option')
     end
 
-    it 'fails if get_password_length fails' do
-      allow(@manager).to receive(:get_password_length).and_raise(
+    it 'fails if merge_password_options fails' do
+      allow(@manager).to receive(:merge_password_options).and_raise(
         Simp::Cli::ProcessingError, 'Error occurred while reading')
 
       expect { @manager.set_password('new_name', options) }.to raise_error(
@@ -555,7 +555,7 @@ Failed to delete the following password files:
     end
   end
 
-  describe '#get_password_length' do
+  describe '#merge_password_options' do
     before(:each) do
       FileUtils.mkdir_p(@password_dir)
       @name = 'name'
@@ -569,43 +569,51 @@ Failed to delete the following password files:
       }
     end
 
-    it 'returns default length when password file does not exist and length option unset' do
-      expect( @manager.get_password_length(@password_file, options) ).to eq(options[:default_length])
+    context 'input :length option unset' do
+      it 'returns options with :length=:default_length when password file does not exist' do
+        expected = options.dup
+        expected[:length] = options[:default_length]
+        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+      end
+
+      it 'returns options with :length=existing valid password length' do
+        File.open(@password_file, 'w') { |file| file.puts '12345678' }
+        expected = options.dup
+        expected[:length] = 8
+        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+      end
+
+      it 'returns options with :length=:default_length when existing password length is too short' do
+        File.open(@password_file, 'w') { |file| file.puts '1234567' }
+        expected = options.dup
+        expected[:length] = options[:default_length]
+        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+      end
+
+      it 'fails if it cannot read existing password file' do
+        File.open(@password_file, 'w') { |file| file.puts "name_password" }
+        allow(File).to receive(:read).with(any_args).and_call_original
+        allow(File).to receive(:read).with(@password_file).and_raise(
+          Errno::EACCES, 'failed password file read')
+
+        expect { @manager.merge_password_options(@password_file, options) }.to raise_error(
+          Simp::Cli::ProcessingError,
+          "Error occurred while reading '#{@password_file}': Permission denied - failed password file read")
+      end
     end
 
-    it 'returns length matching existing password length when it is valid and length option unset' do
-      File.open(@password_file, 'w') { |file| file.puts '12345678' }
-      expect( @manager.get_password_length(@password_file, options) ).to eq(8)
-    end
-
-    it 'returns default length when existing password length is too short and length option unset' do
-      File.open(@password_file, 'w') { |file| file.puts '1234567' }
-      expect( @manager.get_password_length(@password_file, options) ).to eq(options[:default_length])
-    end
-
-    it 'returns options length it is valid' do
-      File.open(@password_file, 'w') { |file| file.puts "name_password" }
+    it 'returns input options when :length exists and is valid' do
       new_options = options.dup
       new_options[:length] = 48
-      expect( @manager.get_password_length(@password_file, new_options) ).to eq(48)
+      expect( @manager.merge_password_options(@password_file, new_options) ).to eq(new_options)
     end
 
-    it 'returns default length when options length length is too short' do
-      File.open(@password_file, 'w') { |file| file.puts "name_password" }
+    it 'returns options with :length=:default_length when input options :length is too short' do
       new_options = options.dup
       new_options[:length] = 6
-      expect( @manager.get_password_length(@password_file, new_options) ).to eq(new_options[:default_length])
-    end
-
-    it 'fails if it cannot read existing password file' do
-      File.open(@password_file, 'w') { |file| file.puts "name_password" }
-      allow(File).to receive(:read).with(any_args).and_call_original
-      allow(File).to receive(:read).with(@password_file).and_raise(
-        Errno::EACCES, 'failed password file read')
-
-      expect { @manager.get_password_length(@password_file, options) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Error occurred while reading '#{@password_file}': Permission denied - failed password file read")
+      expected = options.dup
+      expected[:length] = options[:default_length]
+      expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
     end
   end
 
