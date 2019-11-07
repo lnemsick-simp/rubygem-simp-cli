@@ -5,7 +5,6 @@ require 'spec_helper'
 require 'tmpdir'
 
 require 'test_utils/legacy_passgen'
-
 include TestUtils::LegacyPassgen
 
 describe Simp::Cli::Passgen::LegacyPasswordManager do

@@ -1,21 +1,35 @@
 require 'simp/cli/commands/passgen'
-require 'spec_helper'
+
 require 'etc'
+require 'spec_helper'
 require 'tmpdir'
 
-
-=begin
-def validate_set_and_backup(passgen, args, expected_output, expected_file_info)
-  expect { passgen.run(args) }.to output(expected_output).to_stdout
-
-  expected_file_info.each do |file,expected_contents|
-    expect( File.exist?(file) ).to be true
-    expect( IO.read(file).chomp ).to eq expected_contents
-  end
-end
-=end
+require 'test_utils/legacy_passgen'
+include TestUtils::LegacyPassgen
 
 describe Simp::Cli::Commands::Passgen do
+  before :each do
+    @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
+    @var_dir = File.join(@tmp_dir, 'vardir')
+    @puppet_env_dir = File.join(@tmp_dir, 'environments')
+    @user  = Etc.getpwuid(Process.uid).name
+    @group = Etc.getgrgid(Process.gid).name
+    puppet_info = {
+      :config => {
+        'user'            => @user,
+        'group'           => @group,
+        'environmentpath' => @puppet_env_dir,
+        'vardir'          => @var_dir
+      }
+    }
+
+    allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
+    @passgen = Simp::Cli::Commands::Passgen.new
+  end
+
+  after :each do
+    FileUtils.remove_entry_secure @tmp_dir, true
+  end
 
   let(:module_list_old_simplib) {
     <<-EOM
@@ -49,27 +63,10 @@ Warning: Missing dependency 'puppetlabs-apt':
     EOM
   }
 
+  #
+  # Custom Method Tests
+  #
   describe '#find_valid_environments' do
-    before :each do
-      @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
-      @puppet_env_dir = File.join(@tmp_dir, 'environments')
-      @user  = Etc.getpwuid(Process.uid).name
-      @group = Etc.getgrgid(Process.gid).name
-      puppet_info = {
-        :config => {
-          'user'            => @user,
-          'group'           => @group,
-          'environmentpath' => @puppet_env_dir
-        }
-      }
-
-      allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
-      @passgen = Simp::Cli::Commands::Passgen.new
-    end
-
-    after :each do
-      FileUtils.remove_entry_secure @tmp_dir, true
-    end
 
     it 'returns empty hash when Puppet environments dir is missing or inaccessible' do
       expect( @passgen.find_valid_environments ).to eq({})
@@ -150,10 +147,6 @@ Warning: Missing dependency 'puppetlabs-apt':
   end
 
   describe '#legacy_passgen?' do
-    before :all do
-      @passgen = Simp::Cli::Commands::Passgen.new
-    end
-
     it 'should return true for old simplib' do
       expect( @passgen.legacy_passgen?('3.17.0') ).to eq(true)
     end
@@ -163,50 +156,323 @@ Warning: Missing dependency 'puppetlabs-apt':
     end
   end
 
-  describe '#run' do
-    before :each do
-      @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
-      @var_dir = File.join(@tmp_dir, 'vardir')
-      @puppet_env_dir = File.join(@tmp_dir, 'environments')
-      @user  = Etc.getpwuid(Process.uid).name
-      @group = Etc.getgrgid(Process.gid).name
-      puppet_info = {
-        :config => {
-          'user'   => @user,
-          'group'  => @group,
-          'vardir' => @var_dir,
-          'environmentpath' => @puppet_env_dir
-        }
+#FIXME
+  describe '#parse_command_line' do
+  end
+
+  describe '#remove_passwords' do
+    let(:names) { [ 'name1', 'name2', 'name3', 'name4' ] }
+
+    it 'removes password names when force_remove=false and prompt returns yes' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+
+      # mock the password manager with a double of String in which methods needed have
+      # been defined
+      mock_manager = object_double('Mock Password Manager', {
+        :remove_password  => nil,
+        :location         => "'production' Environment"
+      })
+
+      expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  Removed 'name1'
+Processing 'name2' in 'production' Environment
+  Removed 'name2'
+Processing 'name3' in 'production' Environment
+  Removed 'name3'
+Processing 'name4' in 'production' Environment
+  Removed 'name4'
+      EOM
+
+      expect { @passgen.remove_passwords(mock_manager, names, false) }.
+        to output(expected_output).to_stdout
+    end
+
+    it 'does not remove password names when force_remove=false and prompt returns no' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(false)
+      mock_manager = object_double('Mock Password Manager', {
+        :remove_password  => nil,
+        :location         => "'production' Environment"
+      })
+      expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  Skipped 'name1'
+Processing 'name2' in 'production' Environment
+  Skipped 'name2'
+Processing 'name3' in 'production' Environment
+  Skipped 'name3'
+Processing 'name4' in 'production' Environment
+  Skipped 'name4'
+      EOM
+
+      expect { @passgen.remove_passwords(mock_manager, names, false) }.
+        to output(expected_output).to_stdout
+    end
+
+    it 'removes password names when force_remove=true' do
+      mock_manager = object_double('Mock Password Manager', {
+        :remove_password  => nil,
+        :location         => "'production' Environment"
+      })
+
+      expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  Removed 'name1'
+Processing 'name2' in 'production' Environment
+  Removed 'name2'
+Processing 'name3' in 'production' Environment
+  Removed 'name3'
+Processing 'name4' in 'production' Environment
+  Removed 'name4'
+      EOM
+
+      expect { @passgen.remove_passwords(mock_manager, names, true) }.
+        to output(expected_output).to_stdout
+    end
+
+    it 'removes as many passwords as possible and fails with of list password remove failures' do
+      mock_manager = object_double('Mock Password Manager', {
+        :remove_password  => nil,
+        :location         => "'production' Environment"
+      })
+
+      allow(mock_manager).to receive(:remove_password).with('name1').and_return(nil)
+      allow(mock_manager).to receive(:remove_password).with('name4').and_return(nil)
+      allow(mock_manager).to receive(:remove_password).with('name2').and_raise(
+        Simp::Cli::ProcessingError, 'Remove failed: password not found')
+
+      allow(mock_manager).to receive(:remove_password).with('name3').and_raise(
+        Simp::Cli::ProcessingError, 'Remove failed: permission denied')
+
+
+      expected_stdout = <<-EOM
+Processing 'name1' in 'production' Environment
+  Removed 'name1'
+Processing 'name2' in 'production' Environment
+  Skipped 'name2'
+Processing 'name3' in 'production' Environment
+  Skipped 'name3'
+Processing 'name4' in 'production' Environment
+  Removed 'name4'
+      EOM
+
+      expected_err_msg = <<-EOM
+Failed to remove the following passwords in 'production' Environment:
+  'name2': Remove failed: password not found
+  'name3': Remove failed: permission denied
+      EOM
+
+      expect { @passgen.remove_passwords(mock_manager, names, true) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        expected_err_msg.strip).and output(expected_stdout).to_stdout
+    end
+  end
+
+  describe '#set_passwords' do
+    let(:names) { [ 'name1', 'name2', 'name3', 'name4' ] }
+    let(:password_gen_options) { {} }  # not actually using them in mock objects
+
+    it 'sets passwords' do
+      mock_manager = object_double('Mock Password Manager', {
+        :set_password  => nil,
+        :location      => "'production' Environment"
+      })
+      names.each do |name|
+        allow(mock_manager).to receive(:set_password).
+          with(name, password_gen_options).and_return("#{name}_new_password")
+      end
+
+      expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  'name1' password set to 'name1_new_password'
+Processing 'name2' in 'production' Environment
+  'name2' password set to 'name2_new_password'
+Processing 'name3' in 'production' Environment
+  'name3' password set to 'name3_new_password'
+Processing 'name4' in 'production' Environment
+  'name4' password set to 'name4_new_password'
+      EOM
+
+      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
+        to output(expected_output).to_stdout
+    end
+
+    it 'sets as many passwords as possible and fails with of list password set failures' do
+      mock_manager = object_double('Mock Password Manager', {
+        :set_password  => 'new_password',
+        :location      => "'production' Environment"
+      })
+      allow(mock_manager).to receive(:set_password).
+        with('name1', password_gen_options).and_return('name1_new_password')
+      allow(mock_manager).to receive(:set_password).
+        with('name4', password_gen_options).and_return('name4_new_password')
+      allow(mock_manager).to receive(:set_password).
+        with('name2', password_gen_options).
+        and_raise(Simp::Cli::ProcessingError, 'Set failed: permission denied')
+
+      allow(mock_manager).to receive(:set_password).
+        with('name3', password_gen_options).
+        and_raise(Simp::Cli::ProcessingError, 'Set failed: connection timed out')
+
+      expected_stdout = <<-EOM
+Processing 'name1' in 'production' Environment
+  'name1' password set to 'name1_new_password'
+Processing 'name2' in 'production' Environment
+  Skipped 'name2'
+Processing 'name3' in 'production' Environment
+  Skipped 'name3'
+Processing 'name4' in 'production' Environment
+  'name4' password set to 'name4_new_password'
+      EOM
+
+      expected_err_msg = <<-EOM
+Failed to set 2 out of 4 passwords in 'production' Environment:
+  'name2': Set failed: permission denied
+  'name3': Set failed: connection timed out
+      EOM
+
+      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
+        to raise_error(
+        Simp::Cli::ProcessingError,
+        expected_err_msg.strip).and output(expected_stdout).to_stdout
+    end
+  end
+
+  describe '#show_environment_list' do
+    it 'lists no environments, when no environments exist' do
+      expected_output = "No environments with simp-simplib installed were found.\n\n"
+      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
+    end
+
+    it 'lists no environments, when no environments with simp-simplib exist' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      command = 'puppet module list --color=false --environment=production'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_no_simplib,
+        :stderr => missing_deps_warnings
       }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
-      allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
-      @passgen = Simp::Cli::Commands::Passgen.new
+      expected_output = "No environments with simp-simplib installed were found.\n\n"
+      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
     end
 
-    after :each do
-      FileUtils.remove_entry_secure @tmp_dir, true
+    it 'lists available environments with simp-simplib installed' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      command = 'puppet module list --color=false --environment=production'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_old_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
+      command = 'puppet module list --color=false --environment=dev'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_no_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
+      command = 'puppet module list --color=false --environment=test'
+      module_list_results = {
+        :status => true,
+        :stdout => module_list_new_simplib,
+        :stderr => missing_deps_warnings
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      expected_output = <<-EOM
+Environments:
+  production
+  test
+
+      EOM
+
+      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
     end
 
+    it 'fails if puppet module list command fails' do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      command = 'puppet module list --color=false --environment=production'
+      module_list_results = {
+        :status => false,
+        :stdout => '',
+        :stderr => 'some failure message'
+      }
+      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+
+      expect { @passgen.show_environment_list }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "#{command} failed: some failure message")
+    end
+  end
+
+  describe '#show_name_list' do
+    it 'reports no password names when list is empty' do
+      mock_manager = object_double('Mock Password Manager', {
+        :name_list  => [],
+        :location   => "'production' Environment"
+      })
+
+      expected_output = "No passwords found in 'production' Environment\n\n"
+      expect { @passgen.show_name_list(mock_manager) }.to output(expected_output).to_stdout
+    end
+
+    it 'lists available password names' do
+      mock_manager = object_double('Mock Password Manager', {
+        :name_list  => [ 'name1', 'name2', 'name3'],
+        :location   => "'production' Environment"
+      })
+
+      expected_output = <<-EOM
+'production' Environment Names:
+  name1
+  name2
+  name3
+
+      EOM
+
+      expect { @passgen.show_name_list(mock_manager) }.to output(expected_output).to_stdout
+    end
+
+    it 'fails when password list operation fails' do
+      mock_manager = object_double('Mock Password Manager', {
+        :name_list  => nil,
+        :location   => "'production' Environment"
+      })
+
+      allow(mock_manager).to receive(:name_list).and_raise(
+        Simp::Cli::ProcessingError, 'List failed: connection timed out')
+
+      expect { @passgen.show_name_list(mock_manager) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "List for 'production' Environment failed: List failed: connection timed out")
+    end
+  end
+
+  describe '#show_passwords' do
+    it 'reports no password info when list is empty' do
+    end
+
+    it 'lists available password names' do
+    end
+
+    it 'fails when password list operation fails' do
+    end
+  end
+
+  #
+  # Simp::Cli::Commands::Command API methods
+  #
+  describe '#run' do
+
+    # This test verifies Simp::Cli::Commands::Passgen#show_environment_list
+    # is called.
     describe '--list-env option' do
-      it 'lists no environments, when no environments exist' do
-        expected_output = "No environments with simp-simplib installed were found.\n\n"
-        expect { @passgen.run(['--list-env']) }.to output(expected_output).to_stdout
-      end
-
-      it 'lists no environments, when no environments with simp-simplib exist' do
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-        command = 'puppet module list --color=false --environment=production'
-        module_list_results = {
-          :status => true,
-          :stdout => module_list_no_simplib,
-          :stderr => missing_deps_warnings
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-
-        expected_output = "No environments with simp-simplib installed were found.\n\n"
-        expect { @passgen.run(['--list-env']) }.to output(expected_output).to_stdout
-      end
-
       it 'lists available environments with simp-simplib installed' do
         FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
         command = 'puppet module list --color=false --environment=production'
@@ -217,54 +483,46 @@ Warning: Missing dependency 'puppetlabs-apt':
         }
         allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
-        command = 'puppet module list --color=false --environment=dev'
+        expected_output = <<-EOM
+Environments:
+  production
+
+        EOM
+        expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
+      end
+    end
+
+    describe 'setup error cases for options using a password manager' do
+      it 'fails when the environment does not have simp-simplib installed' do
+        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+        command = 'puppet module list --color=false --environment=production'
         module_list_results = {
           :status => true,
           :stdout => module_list_no_simplib,
           :stderr => missing_deps_warnings
         }
         allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
-        command = 'puppet module list --color=false --environment=test'
-        module_list_results = {
-          :status => true,
-          :stdout => module_list_new_simplib,
-          :stderr => missing_deps_warnings
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-        expected_output = <<-EOM
-Environments:
-  production
-  test
-
-        EOM
-        expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
+        expect { @passgen.run(['-l']) }.to raise_error(
+          Simp::Cli::ProcessingError,
+          "Invalid Puppet environment 'production': simp-simplib is not installed")
       end
 
-      it 'fails if puppet module list command fails' do
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-        command = 'puppet module list --color=false --environment=production'
-        module_list_results = {
-          :status => false,
-          :stdout => '',
-          :stderr => 'some failure message'
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-
-        expect { @passgen.run(['-E', '-d', @tmp_dir]) }.to raise_error(
+      it 'fails when LegacyPasswordManager cannot be constructed' do
+        allow(@passgen).to receive(:get_simplib_version).and_return('3.0.0')
+        password_env_dir = File.join(@var_dir, 'simp', 'environments')
+        default_password_dir = File.join(password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+        FileUtils.mkdir_p(File.dirname(default_password_dir))
+        FileUtils.touch(default_password_dir)
+        expect { @passgen.run(['-l']) }.to raise_error(
           Simp::Cli::ProcessingError,
-          "#{command} failed: some failure message")
+          "Password directory '#{default_password_dir}' is not a directory")
       end
     end
 
-    # The list name operation is fully tested in the objects that implement
-    # this functionality.  This test is a subset of those tests with the intent
-    # to verify the correct object was constructed and used and its results are
-    # properly reported.
-    describe '--list-name option' do
-      context 'legacy manager for legacy passgen' do
+    # This test verifies that the correct password manager object has been
+    # instantiated and used in Simp::Cli::Commands::Passgen#show_name_list.
+    describe '--list-names option' do
+      context 'legacy manager' do
         before :each do
           @password_env_dir = File.join(@var_dir, 'simp', 'environments')
           @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
@@ -280,14 +538,11 @@ Environments:
           allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
         end
 
+
         it 'lists available names for default environment' do
-          FileUtils.touch(File.join(@default_password_dir, 'production_name'))
-          FileUtils.touch(File.join(@default_password_dir, 'production_name.salt'))
-          FileUtils.touch(File.join(@default_password_dir, 'production_name.last'))
-          FileUtils.touch(File.join(@default_password_dir, 'production_name.salt.last'))
-          FileUtils.touch(File.join(@default_password_dir, '10.0.1.2'))
-          FileUtils.touch(File.join(@default_password_dir, 'salt.and.pepper'))
-          FileUtils.touch(File.join(@default_password_dir, 'my.last.name'))
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@default_password_dir, names)
+
           expected_output = <<EOM
 'production' Environment Names:
   10.0.1.2
@@ -302,9 +557,8 @@ EOM
         it 'lists available names for specified environment' do
           password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
           FileUtils.mkdir_p(password_dir)
-          FileUtils.touch(File.join(password_dir, 'env1_name1'))
+          create_password_files(password_dir, ['env1_name1'])
 
-          FileUtils.mkdir_p(File.join(@puppet_env_dir, 'env1'))
           command = 'puppet module list --color=false --environment=env1'
           module_list_results = {
             :status => true,
@@ -320,60 +574,56 @@ EOM
           expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
         end
 
-        it 'fails when password directory is not a directory' do
-          FileUtils.rm_rf(@default_password_dir)
-          FileUtils.touch(@default_password_dir)
-          expect { @passgen.run(['-l']) }.to raise_error(
-            Simp::Cli::ProcessingError,
-            "Password directory '#{@default_password_dir}' is not a directory")
-        end
       end
 
+#FIXME
 =begin
-      context 'current manager for legacy mode passgen' do
+      context 'current manager' do
+      end
+=end
+    end
+
+    # This test verifies that the correct password manager object has been
+    # instantiated and used in Simp::Cli::Commands::Passgen#show_passwords.
+    describe '--name option' do
+      context 'legacy manager' do
       end
 
-      context 'current manager for libkv mode passgen' do
+#FIXME
+=begin
+      context 'current manager' do
+      end
+=end
+    end
+
+    # This test verifies that the correct password manager object has been
+    # instantiated and used in Simp::Cli::Commands::Passgen#remove_passwords.
+    describe '--remove option' do
+      context 'legacy manager' do
       end
 
+#FIXME
+=begin
+      context 'current manager' do
+      end
+=end
+    end
+
+    # This test verifies that the correct password manager object has been
+    # instantiated and used in Simp::Cli::Commands::Passgen#set_passwords.
+    describe '--set option' do
+      context 'legacy manager' do
+      end
+
+#FIXME
+=begin
+      context 'current manager' do
+      end
 =end
     end
 
 =begin
 
-require 'simp/cli/passgen/legacy_password_manager'
-require 'spec_helper'
-require 'etc'
-require 'tmpdir'
-
-def create_password_files(password_dir, names_with_backup, names_without_backup=[])
-  names_with_backup.each do |name|
-    name_file = File.join(password_dir, name)
-    File.open(name_file, 'w') { |file| file.puts "#{name}_password" }
-    File.open("#{name_file}.salt", 'w') { |file| file.puts "salt for #{name}" }
-    File.open("#{name_file}.last", 'w') { |file| file.puts "#{name}_backup_password" }
-    File.open("#{name_file}.salt.last", 'w') { |file| file.puts "salt for #{name} backup password" }
-  end
-
-  names_without_backup.each do |name|
-    name_file = File.join(password_dir, name)
-    File.open(name_file, 'w') { |file| file.puts "#{name}_password" }
-    File.open("#{name_file}.salt", 'w') { |file| file.puts "salt for #{name}" }
-  end
-end
-
-def validate_set_and_backup(manager, args, expected_output, expected_file_info)
-  expect { manager.set_passwords(*args) }.to output(expected_output).to_stdout
-
-  expected_file_info.each do |file,expected_contents|
-    if expected_contents.nil?
-      expect( File.exist?(file) ).to be false
-    else
-      expect( File.exist?(file) ).to be true
-      expect( IO.read(file).chomp ).to eq expected_contents
-    end
-  end
-end
 
 describe Simp::Cli::Passgen::LegacyPasswordManager do
   before :each do
@@ -874,176 +1124,6 @@ Failed to set 5 out of 7 passwords:
     end
   end
 
-  describe '#show_name_list' do
-    before :each do
-      FileUtils.mkdir_p(@password_dir)
-    end
-
-    it 'lists no password names, when no names exist' do
-      expected_output = <<-EOM
-production Names:
-  
-
-      EOM
-      expect { @manager.show_name_list }.to output(expected_output).to_stdout
-    end
-
-    it 'lists available names for the specified environment' do
-      names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
-      create_password_files(@password_dir, names)
-      expected_output = <<-EOM
-production Names:
-  10.0.1.2
-  my.last.name
-  production_name
-  salt.and.pepper
-
-      EOM
-      expect { @manager.show_name_list }.to output(expected_output).to_stdout
-    end
-
-    it 'lists available names for a specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
-      names = ['app1_user', 'app2_user' ]
-      create_password_files(@alt_password_dir, names)
-      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
-      expected_output = <<-EOM
-#{@alt_password_dir} Names:
-  app1_user
-  app2_user
-
-      EOM
-      expect { manager.show_name_list }.to output(expected_output).to_stdout
-    end
-
-    it 'fails when password directory does not exist' do
-      FileUtils.rm_rf(@password_dir)
-      expect { @manager.show_name_list }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Password directory '#{@password_dir}' does not exist")
-    end
-
-    it 'fails when password directory is not a directory' do
-      FileUtils.rm_rf(@password_dir)
-      FileUtils.touch(@password_dir)
-      expect { @manager.show_name_list }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Password directory '#{@password_dir}' is not a directory")
-    end
-  end
-
-  describe '#show_passwords' do
-    before :each do
-      FileUtils.mkdir_p(@password_dir)
-    end
-
-    it 'shows current and previous passwords for specified names of specified environment' do
-      names_with_backup = ['production_name1', 'production_name3']
-      names_without_backup = ['production_name2']
-      create_password_files(@password_dir, names_with_backup, names_without_backup)
-      expected_output = <<-EOM
-production Environment Passwords
-================================
-Name: production_name2
-  Current:  production_name2_password
-
-Name: production_name3
-  Current:  production_name3_password
-  Previous: production_name3_backup_password
-
-      EOM
-      expect { @manager.show_passwords(['production_name2','production_name3']) }.
-        to output(expected_output).to_stdout
-    end
-
-    it 'shows current and previous passwords for specified names in a specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
-      create_password_files(@alt_password_dir, ['env1_name1'])
-      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
-      expected_output = <<-EOM
-#{@alt_password_dir} Passwords
-#{'='*@alt_password_dir.length}==========
-Name: env1_name1
-  Current:  env1_name1_password
-  Previous: env1_name1_backup_password
-
-      EOM
-      expect { manager.show_passwords(['env1_name1']) }.
-        to output(expected_output).to_stdout
-    end
-
-    it 'reports all accessible passwords and fails with list of password read failures' do
-      names = ['name1', 'name2', 'name3']
-      create_password_files(@password_dir, names)
-      unreadable_file = File.join(@password_dir, 'name2')
-      allow(File).to receive(:read).with(any_args).and_call_original
-      allow(File).to receive(:read).with(unreadable_file).and_raise(
-        Errno::EACCES, 'failed read')
-
-      expected_stdout = <<-EOM
-production Environment Passwords
-================================
-Name: name1
-  Current:  name1_password
-  Previous: name1_backup_password
-
-Name: name2
-  UNKNOWN
-
-Name: name3
-  Current:  name3_password
-  Previous: name3_backup_password
-
-      EOM
-
-      expected_err_msg = <<-EOM
-Failed to read password info for the following:
-  'name2': Permission denied - failed read
-      EOM
-
-      expect { @manager.show_passwords(names) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        expected_err_msg.strip).and output(expected_stdout).to_stdout
-    end
-
-    it 'fails when no names specified' do
-      expect { @manager.show_passwords([]) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        'No names specified.')
-    end
-
-    it 'fails when invalid name specified' do
-      names = ['name1', 'name2', 'name3']
-      create_password_files(@password_dir, names)
-      expect { @manager.show_passwords(['oops']) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Invalid name 'oops' selected.\n\nValid names: name1, name2, name3")
-    end
-
-    it 'fails when password directory does not exist' do
-      FileUtils.rm_rf(@password_dir)
-      expect { @manager.show_passwords(['name1']) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Password directory '#{@password_dir}' does not exist")
-    end
-
-    it 'fails when password directory is not a directory' do
-      FileUtils.rm_rf(@password_dir)
-      FileUtils.touch(@password_dir)
-      expect { @manager.show_passwords(['name1']) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Password directory '#{@password_dir}' is not a directory")
-    end
-
-    it 'fails when password directory cannot be accessed' do
-      allow(Dir).to receive(:chdir).with(@password_dir).and_raise(
-        Errno::EACCES, 'failed dir access')
-
-      expect { @manager.show_passwords(['name1']) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        "Error occurred while accessing '#{@password_dir}': Permission denied - failed dir access")
-    end
-  end
 
   # Helpers.  Since most helper methods are fully tested in Operations tests,
   # only use cases not otherwise tested are exercised here.

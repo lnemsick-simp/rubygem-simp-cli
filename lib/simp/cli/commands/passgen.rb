@@ -343,8 +343,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def remove_passwords(manager, names, force_remove)
     errors = []
     names.each do |name|
+      puts "Processing '#{name}' in #{manager.location}"
       remove = force_remove
-      unless remove
+      unless force_remove
         prompt = "Are you sure you want to remove all info for '#{name}'?".bold
         remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
       end
@@ -352,18 +353,19 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       if remove
         begin
           manager.remove_password(name)
-          puts "Deleted '#{name}' in #{manager.location}"
+          puts "  Removed '#{name}'"
         rescue Exception => e
-          puts '  Skipped'
+          puts "  Skipped '#{name}'"
           errors << "'#{name}': #{e}"
         end
       else
-        puts '  Skipped'
+        puts "  Skipped '#{name}'"
       end
     end
 
     unless errors.empty?
-      err_msg = "Failed to delete the following passwords in #{manager.location}:\n  #{errors.join("\n  ")}"
+      err_msg = "Failed to remove the following passwords in" +
+       " #{manager.location}:\n  #{errors.join("\n  ")}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
@@ -373,19 +375,21 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError if unable to set all passwords
   #
   def set_passwords(manager, names, password_gen_options)
+    errors = []
     names.each do |name|
-      puts "Processing Name '#{name}' in #{manager.location}"
+      puts "Processing '#{name}' in #{manager.location}"
       begin
         password = manager.set_password(name, password_gen_options)
-        puts "  Password set to '#{password}'"
+        puts "  '#{name}' password set to '#{password}'"
       rescue Exception => e
-        puts '  Skipped'
+        puts "  Skipped '#{name}'"
         errors << "'#{name}': #{e}"
       end
     end
 
     unless errors.empty?
-      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      err_msg = "Failed to set #{errors.length} out of #{names.length}" +
+        " passwords in #{manager.location}:\n  #{errors.join("\n  ")}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
@@ -410,13 +414,18 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError upon any password manager failure
   #
   def show_name_list(manager)
-    names = manager.name_list
-    if names.empty?
-      puts "No passwords found in #{manager.location}"
-    else
-      puts "#{manager.location} Names:\n  #{names.join("\n  ")}"
+    begin
+      names = manager.name_list
+      if names.empty?
+        puts "No passwords found in #{manager.location}"
+      else
+        puts "#{manager.location} Names:\n  #{names.join("\n  ")}"
+      end
+      puts
+    rescue Exception => e
+      err_msg = "List for #{manager.location} failed: #{e}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
-    puts
   end
 
   # Prints password info to the console.
