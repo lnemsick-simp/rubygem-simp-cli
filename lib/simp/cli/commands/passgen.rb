@@ -404,7 +404,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     if valid_envs.empty?
       puts 'No environments with simp-simplib installed were found.'
     else
-      puts "Environments:\n  #{valid_envs.keys.sort.join("\n  ")}"
+      title = 'Environments'
+      puts title
+      puts '='*title.length
+      puts valid_envs.keys.sort.join("\n")
     end
     puts
   end
@@ -419,7 +422,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       if names.empty?
         puts "No passwords found in #{manager.location}"
       else
-        puts "#{manager.location} Names:\n  #{names.join("\n  ")}"
+        title = "#{manager.location} Names"
+        puts title
+        puts '='*title.length
+        puts names.join("\n")
       end
       puts
     rescue Exception => e
@@ -443,6 +449,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     title = "#{manager.location} Passwords"
     puts title
     puts '='*title.length
+    errors = []
     names.each do |name|
       puts "Name: #{name}"
       begin

@@ -230,7 +230,7 @@ Processing 'name4' in 'production' Environment
         to output(expected_output).to_stdout
     end
 
-    it 'removes as many passwords as possible and fails with of list password remove failures' do
+    it 'removes as many passwords as possible and fails with list of password remove failures' do
       mock_manager = object_double('Mock Password Manager', {
         :remove_password  => nil,
         :location         => "'production' Environment"
@@ -277,6 +277,7 @@ Failed to remove the following passwords in 'production' Environment:
         :set_password  => nil,
         :location      => "'production' Environment"
       })
+
       names.each do |name|
         allow(mock_manager).to receive(:set_password).
           with(name, password_gen_options).and_return("#{name}_new_password")
@@ -297,7 +298,7 @@ Processing 'name4' in 'production' Environment
         to output(expected_output).to_stdout
     end
 
-    it 'sets as many passwords as possible and fails with of list password set failures' do
+    it 'sets as many passwords as possible and fails with list of password set failures' do
       mock_manager = object_double('Mock Password Manager', {
         :set_password  => 'new_password',
         :location      => "'production' Environment"
@@ -386,9 +387,10 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
       }
       allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
       expected_output = <<-EOM
-Environments:
-  production
-  test
+Environments
+============
+production
+test
 
       EOM
 
@@ -429,10 +431,11 @@ Environments:
       })
 
       expected_output = <<-EOM
-'production' Environment Names:
-  name1
-  name2
-  name3
+'production' Environment Names
+==============================
+name1
+name2
+name3
 
       EOM
 
@@ -455,14 +458,92 @@ Environments:
   end
 
   describe '#show_passwords' do
-    it 'reports no password info when list is empty' do
+    let(:names) { [ 'name1', 'name2', 'name3', 'name4' ] }
+
+    it 'lists password names' do
+      mock_manager = object_double('Mock Password Manager', {
+        :password_info => nil,
+        :location      => "'production' Environment"
+      })
+
+      [ 'name1', 'name2', 'name4'].each do |name|
+        allow(mock_manager).to receive(:password_info).with(name).and_return( {
+          'value' => { 'password' => "#{name}_password", 'salt' => "#{name}_salt" },
+          'metadata' => { 'history' =>
+            [ [ "#{name}_password_last", "#{name}_salt_last"] ]
+          }
+         } )
+      end
+
+      allow(mock_manager).to receive(:password_info).with('name3').and_return( {
+        'value' => { 'password' => 'name3_password', 'salt' => 'name3_salt' },
+        'metadata' => { 'history' => [] }
+      } )
+
+      expected_output = <<-EOM
+'production' Environment Passwords
+==================================
+Name: name1
+  Current:  name1_password
+  Previous: name1_password_last
+
+Name: name2
+  Current:  name2_password
+  Previous: name2_password_last
+
+Name: name3
+  Current:  name3_password
+
+Name: name4
+  Current:  name4_password
+  Previous: name4_password_last
+
+      EOM
+
+      expect { @passgen.show_passwords(mock_manager, names) }.to output(expected_output).to_stdout
     end
 
-    it 'lists available password names' do
-    end
+=begin
+    it 'lists info for as many passwords as possible and fails with list of retrieval failures' do
+      mock_manager = object_double('Mock Password Manager', {
+        :set_password  => 'new_password',
+        :location      => "'production' Environment"
+      })
+      allow(mock_manager).to receive(:set_password).
+        with('name1', password_gen_options).and_return('name1_new_password')
+      allow(mock_manager).to receive(:set_password).
+        with('name4', password_gen_options).and_return('name4_new_password')
+      allow(mock_manager).to receive(:set_password).
+        with('name2', password_gen_options).
+        and_raise(Simp::Cli::ProcessingError, 'Set failed: permission denied')
 
-    it 'fails when password list operation fails' do
+      allow(mock_manager).to receive(:set_password).
+        with('name3', password_gen_options).
+        and_raise(Simp::Cli::ProcessingError, 'Set failed: connection timed out')
+
+      expected_stdout = <<-EOM
+Processing 'name1' in 'production' Environment
+  'name1' password set to 'name1_new_password'
+Processing 'name2' in 'production' Environment
+  Skipped 'name2'
+Processing 'name3' in 'production' Environment
+  Skipped 'name3'
+Processing 'name4' in 'production' Environment
+  'name4' password set to 'name4_new_password'
+      EOM
+
+      expected_err_msg = <<-EOM
+Failed to set 2 out of 4 passwords in 'production' Environment:
+  'name2': Set failed: permission denied
+  'name3': Set failed: connection timed out
+      EOM
+
+      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
+        to raise_error(
+        Simp::Cli::ProcessingError,
+        expected_err_msg.strip).and output(expected_stdout).to_stdout
     end
+=end
   end
 
   #
@@ -484,8 +565,9 @@ Environments:
         allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
         expected_output = <<-EOM
-Environments:
-  production
+Environments
+============
+production
 
         EOM
         expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
@@ -544,11 +626,12 @@ Environments:
           create_password_files(@default_password_dir, names)
 
           expected_output = <<EOM
-'production' Environment Names:
-  10.0.1.2
-  my.last.name
-  production_name
-  salt.and.pepper
+'production' Environment Names
+==============================
+10.0.1.2
+my.last.name
+production_name
+salt.and.pepper
 
 EOM
           expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
@@ -567,8 +650,9 @@ EOM
           }
           allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
           expected_output = <<EOM
-'env1' Environment Names:
-  env1_name1
+'env1' Environment Names
+========================
+env1_name1
 
 EOM
           expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
