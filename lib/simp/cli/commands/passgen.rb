@@ -327,7 +327,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
           # will only get here if someone passed in names that were all empty
           # strings or only whitespace (i.e., an automated script error)
           type = @operation.to_s.split('_').first
-          err_msg = "No non-empty names specified for #{type} passwords operation."
+          err_msg = "Only empty names specified for #{type} passwords operation."
           raise OptionParser::ParseError.new(err_msg)
         end
       end

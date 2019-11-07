@@ -156,10 +156,6 @@ Warning: Missing dependency 'puppetlabs-apt':
     end
   end
 
-#FIXME
-  describe '#parse_command_line' do
-  end
-
   describe '#remove_passwords' do
     let(:names) { [ 'name1', 'name2', 'name3', 'name4' ] }
 
@@ -1832,7 +1828,19 @@ EOM
           /The SIMP Passgen Tool requires at least one option/)
 
         expect { @passgen.run(['-e', 'production']) }.to raise_error(OptionParser::ParseError,
-          /No password operation specified./)
+          /No password operation specified/)
+      end
+
+      {
+        'remove' => '--remove',
+        'set'    => '--set',
+        'show'   => '--name'
+      }.each do |type, option|
+        it "requires #{option} option to have non-empty name list" do
+          expect { @passgen.run([option, ","]) }.to raise_error(
+            OptionParser::ParseError,
+            /Only empty names specified for #{type} passwords operation/)
+        end
       end
     end
   end
