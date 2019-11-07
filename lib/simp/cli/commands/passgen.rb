@@ -466,7 +466,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     end
 
     unless errors.empty?
-      err_msg = "Failed to retrieve #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      err_msg = "Failed to retrieve #{errors.length} out of #{names.length}" +
+        " passwords in #{manager.location}:\n  #{errors.join("\n  ")}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end

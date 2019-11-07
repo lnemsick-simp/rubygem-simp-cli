@@ -503,47 +503,56 @@ Name: name4
       expect { @passgen.show_passwords(mock_manager, names) }.to output(expected_output).to_stdout
     end
 
-=begin
     it 'lists info for as many passwords as possible and fails with list of retrieval failures' do
       mock_manager = object_double('Mock Password Manager', {
-        :set_password  => 'new_password',
+        :password_info => nil,
         :location      => "'production' Environment"
       })
-      allow(mock_manager).to receive(:set_password).
-        with('name1', password_gen_options).and_return('name1_new_password')
-      allow(mock_manager).to receive(:set_password).
-        with('name4', password_gen_options).and_return('name4_new_password')
-      allow(mock_manager).to receive(:set_password).
-        with('name2', password_gen_options).
+
+      [ 'name1', 'name4'].each do |name|
+        allow(mock_manager).to receive(:password_info).with(name).and_return( {
+          'value' => { 'password' => "#{name}_password", 'salt' => "#{name}_salt" },
+          'metadata' => { 'history' =>
+            [ [ "#{name}_password_last", "#{name}_salt_last"] ]
+          }
+         } )
+      end
+
+      allow(mock_manager).to receive(:password_info).with('name2').
         and_raise(Simp::Cli::ProcessingError, 'Set failed: permission denied')
 
-      allow(mock_manager).to receive(:set_password).
-        with('name3', password_gen_options).
+      allow(mock_manager).to receive(:password_info).with('name3').
         and_raise(Simp::Cli::ProcessingError, 'Set failed: connection timed out')
 
       expected_stdout = <<-EOM
-Processing 'name1' in 'production' Environment
-  'name1' password set to 'name1_new_password'
-Processing 'name2' in 'production' Environment
-  Skipped 'name2'
-Processing 'name3' in 'production' Environment
-  Skipped 'name3'
-Processing 'name4' in 'production' Environment
-  'name4' password set to 'name4_new_password'
+'production' Environment Passwords
+==================================
+Name: name1
+  Current:  name1_password
+  Previous: name1_password_last
+
+Name: name2
+  Skipped
+
+Name: name3
+  Skipped
+
+Name: name4
+  Current:  name4_password
+  Previous: name4_password_last
+
       EOM
 
       expected_err_msg = <<-EOM
-Failed to set 2 out of 4 passwords in 'production' Environment:
+Failed to retrieve 2 out of 4 passwords in 'production' Environment:
   'name2': Set failed: permission denied
   'name3': Set failed: connection timed out
       EOM
 
-      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
-        to raise_error(
+      expect { @passgen.show_passwords(mock_manager, names) }.to raise_error(
         Simp::Cli::ProcessingError,
         expected_err_msg.strip).and output(expected_stdout).to_stdout
     end
-=end
   end
 
   #
@@ -1023,7 +1032,7 @@ Processing Name 'env1_name4' in #{@alt_password_dir}
 
       EOM
 
-      expected_file_info = {
+      expected_file_info = {spec/lib/simp/cli/commands/passgen_spec.rb
         # new password, no salt, and full backup
         name4_file             => 'new_password',
         name4_salt_file        => nil,
@@ -1128,7 +1137,7 @@ Processing Name 'pw_chown_failure' in production Environment
 Failed to set 5 out of 7 passwords:
   'pw_read_failure': Error occurred while reading '#{files['pw_read_failure']}': Permission denied - failed password file read
   'pw_move_failure': Error occurred while backing up '#{files['pw_move_failure']}': Permission denied - failed password file move
-  'salt_move_failure': Error occurred while backing up '#{files['salt_move_failure']}': Permission denied - failed salt file move
+  'salt_move_failure': Error occurred while backing up '#{files['salt_move_failure']}': Permission denied - failed salt file movespec/lib/simp/cli/commands/passgen_spec.rb
   'pw_write_failure': Error occurred while writing '#{files['pw_write_failure']}': Permission denied - failed password file write
   'pw_chown_failure': Could not set password file ownership for '#{files['pw_chown_failure']}': failed password file chown
       EOM
