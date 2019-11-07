@@ -48,11 +48,8 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
   # Password Manager API tests
   #
   describe '#name_list' do
-    before :each do
-      FileUtils.mkdir_p(@password_dir)
-    end
-
     it 'returns empty array  when no names exist' do
+      FileUtils.mkdir_p(@password_dir)
       expect( @manager.name_list ).to eq([])
     end
 
@@ -69,7 +66,6 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
     end
 
     it 'returns list of available names for a specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
       names = ['app1_user', 'app2_user' ]
       create_password_files(@alt_password_dir, names)
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
@@ -78,6 +74,7 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
     end
 
     it 'fails when password directory cannot be accessed' do
+      FileUtils.mkdir_p(@password_dir)
       allow(Dir).to receive(:chdir).with(@password_dir).and_raise(
          Errno::EACCES, 'failed chdir')
 
@@ -90,7 +87,6 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
 
   describe '#password_info' do
     before :each do
-      FileUtils.mkdir_p(@password_dir)
       names_with_backup = ['production_name1', 'production_name3']
       names_without_backup = ['production_name2']
       create_password_files(@password_dir, names_with_backup, names_without_backup)
@@ -127,7 +123,6 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
     end
 
     it 'returns hash with info for name in specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
       create_password_files(@alt_password_dir, ['env1_name1'])
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
 
@@ -167,7 +162,6 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
 
   describe '#remove_password' do
     before :each do
-      FileUtils.mkdir_p(@password_dir)
       names_with_backup = ['production_name1', 'production_name3']
       names_without_backup = ['production_name2']
       create_password_files(@password_dir, names_with_backup, names_without_backup)
@@ -207,7 +201,6 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
     end
 
     it 'removes password, backup, and salt files in specified password dir when force_remove=true' do
-      FileUtils.mkdir_p(@alt_password_dir)
       create_password_files(@alt_password_dir, ['env1_name4'])
 
 
@@ -259,7 +252,6 @@ Failed to delete the following password files:
 
   describe '#set_password' do
     before :each do
-      FileUtils.mkdir_p(@password_dir)
       names_with_backup = ['production_name1', 'production_name3']
       names_without_backup = ['production_name2']
       create_password_files(@password_dir, names_with_backup, names_without_backup)
@@ -321,7 +313,6 @@ Failed to delete the following password files:
     end
 
     it 'updates password file, and backs up old files, and returns new password for name in the specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
       create_password_files(@alt_password_dir, ['env1_name4'])
 
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
@@ -460,7 +451,6 @@ Failed to delete the following password files:
   #
   describe '#backup_password_files' do
     before :each do
-      FileUtils.mkdir_p(@password_dir)
       create_password_files(@password_dir, ['name1'])
       @name1_file = File.join(@password_dir, 'name1')
       @name1_salt_file = File.join(@password_dir, 'name1.salt')

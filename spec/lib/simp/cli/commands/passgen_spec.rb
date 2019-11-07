@@ -555,19 +555,29 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
   # Simp::Cli::Commands::Command API methods
   #
   describe '#run' do
+    before :each do
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
+      @module_list_command = 'puppet module list --color=false --environment=production'
+      @old_simplib_module_list_results = {
+        :status => true,
+        :stdout => module_list_old_simplib,
+        :stderr => missing_deps_warnings
+      }
+
+      @new_simplib_module_list_results = {
+        :status => true,
+        :stdout => module_list_new_simplib,
+        :stderr => missing_deps_warnings
+      }
+
+    end
 
     # This test verifies Simp::Cli::Commands::Passgen#show_environment_list
     # is called.
     describe '--list-env option' do
       it 'lists available environments with simp-simplib installed' do
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-        command = 'puppet module list --color=false --environment=production'
-        module_list_results = {
-          :status => true,
-          :stdout => module_list_old_simplib,
-          :stderr => missing_deps_warnings
-        }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).
+          with(@module_list_command).and_return(@old_simplib_module_list_results)
 
         expected_output = <<-EOM
 Environments
@@ -581,14 +591,14 @@ production
 
     describe 'setup error cases for options using a password manager' do
       it 'fails when the environment does not have simp-simplib installed' do
-        FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-        command = 'puppet module list --color=false --environment=production'
         module_list_results = {
           :status => true,
           :stdout => module_list_no_simplib,
           :stderr => missing_deps_warnings
         }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).
+          with(@module_list_command).and_return(module_list_results)
+
         expect { @passgen.run(['-l']) }.to raise_error(
           Simp::Cli::ProcessingError,
           "Invalid Puppet environment 'production': simp-simplib is not installed")
@@ -613,16 +623,9 @@ production
         before :each do
           @password_env_dir = File.join(@var_dir, 'simp', 'environments')
           @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
-          FileUtils.mkdir_p(@default_password_dir)
 
-          FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-          command = 'puppet module list --color=false --environment=production'
-          module_list_results = {
-            :status => true,
-            :stdout => module_list_old_simplib,
-            :stderr => missing_deps_warnings
-          }
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command).and_return(@old_simplib_module_list_results)
         end
 
 
@@ -644,7 +647,6 @@ EOM
 
         it 'lists available names for specified environment' do
           password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-          FileUtils.mkdir_p(password_dir)
           create_password_files(password_dir, ['env1_name1'])
 
           command = 'puppet module list --color=false --environment=env1'

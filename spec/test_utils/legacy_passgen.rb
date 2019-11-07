@@ -1,7 +1,12 @@
+require 'fileutils'
+
 module TestUtils
   module LegacyPassgen
 
+
     def create_password_files(password_dir, names_with_backup, names_without_backup=[])
+      FileUtils.mkdir_p(password_dir)
+
       names_with_backup.each do |name|
         name_file = File.join(password_dir, name)
         File.open(name_file, 'w') { |file| file.puts "#{name}_password" }

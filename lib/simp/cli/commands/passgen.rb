@@ -124,6 +124,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @return the version of simplib in the environment or nil if not present
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails for the
   #   specified environment, e.g., if the environment does not exist
+  # WARNING: This is fragile.  It depends upon formatted output of a puppet
+  # command. Tried to use different output formatting, but the results were
+  # object dumps and not usable.
   def get_simplib_version(env)
     simplib_version = nil
     command = "puppet module list --color=false --environment=#{env}"
@@ -215,9 +218,11 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @names = names
       end
 
-#FIXME add a --[no]--brief option for showing password info, defaults to brief
+      # TODO add a --[no]--brief option for showing password info. Want users
+      # to have the option to display all available info, espcially for libkv-stored
+      # passwords. Would default to brief (current behavior).
 
-#FIXME add a debug or verbose option
+#FIXME add a debug or verbose option to help debug problems
 #
       opts.on('-h', '--help', 'Print this message.') do
         puts opts
