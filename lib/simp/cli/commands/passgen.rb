@@ -57,11 +57,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     parse_command_line(args)
     return if @help_requested
 
-    @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
-
     if @operation == :show_environment_list
-      valid_envs = find_valid_environments
-      show_environment_list(valid_envs.keys)
+      show_environment_list
     else
       simplib_version = get_simplib_version(@environment)
       if simplib_version.nil?
@@ -75,29 +72,26 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         # This environment does not have Puppet functions to manage
         # simplib::passgen passwords. Fallback to how these passwords were
         # managed, before.
-        # TODO See if we can use functions from another environment that does
-        # have the passgen-managing functions?  The simplib::passgen::legacy
-        # functions would have to be reworked to allow overriding the environment.
         manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
           @password_dir)
       else
         # This environment has Puppet functions to manage simplib::passgen
         # passwords, whether they are stored in the legacy directory for the
         # environment or in a key/value store via libkv.  The functions figure
-        # out where the passwords are stored and executes appropriate logic.
+        # out where the passwords are stored and execute appropriate logic.
         manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
           @backend, @folder)
       end
 
       case @operation
       when :show_name_list
-        manager.show_name_list
+        show_name_list(manager)
       when :show_passwords
-        manager.show_passwords(@names)
+        show_passwords(manager, @names)
       when :set_passwords
-        manager.set_passwords(@names, @password_gen_options)
+        set_passwords(manager, @names, @password_gen_options)
       when :remove_passwords
-        manager.remove_passwords(@names, @force_remove)
+        remove_passwords(manager, @names, @force_remove)
       end
     end
   end
@@ -110,6 +104,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   #   - key is the environment name
   #   - value is the version of simp-simplib
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
+  #   for any Puppet environment
   def find_valid_environments
     # grab the environments path from the production env puppet master config
     environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
@@ -127,8 +122,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   end
 
   # @return the version of simplib in the environment or nil if not present
-  # @raise Simp::Cli::ProcessingError if `puppet module list` fails, for example
-  #   if the environment does not exist
+  # @raise Simp::Cli::ProcessingError if `puppet module list` fails for the
+  #   specified environment, e.g., if the environment does not exist
   def get_simplib_version(env)
     simplib_version = nil
     command = "puppet module list --color=false --environment=#{env}"
@@ -174,50 +169,48 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator "  # This example is for a password from simplib::passgen('app1/admin')"
       opts.separator '  simp passgen -f app1 -n admin'
       opts.separator ''
-      opts.separator '  # remove specific passwords in the test environment'
+      opts.separator '  # Remove specific passwords in the test environment.'
       opts.separator '  simp passgen -e test -r NAME1,NAME2'
       opts.separator ''
-      opts.separator '  # manually set specific passwords in the production environment'
+      opts.separator '  # Set specific passwords in the production environment to values entered'
+      opts.separator '  # by the user.'
       opts.separator '  simp passgen -s NAME1,NAME2,NAME3'
       opts.separator ''
-      opts.separator '  # regenerate specific passwords in the production environment'
+      opts.separator '  # Automatically regenerate specific passwords in the production environment'
       opts.separator '  simp passgen --auto-generate -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator 'COMMANDS:'
       opts.separator ''
 
-      opts.on('-E', '--list-env', 'List possible environments that may contain passwords.') do
+      opts.on('-E', '--list-env',
+          'List environments that may have passwords.') do
         @operation = :show_environment_list
       end
 
       opts.on('-l', '--list-names',
-        'List possible password names for the specified environment.',
-        'For passwords in a libkv key/value store, the listing is for the',
-        'sub-folder specified by --folder.') do
+          'List password names for the specified',
+          'environment.') do
         @operation = :show_name_list
       end
 
       opts.on('-n', '--name NAME1[,NAME2,...]', Array,
-            'Show password info for NAME1[,NAME2,...] in the',
-            'specified environment.',
-             'For passwords in a libkv key/value store, the listing is for the',
-             'sub-folder specified by --folder.') do |names|
+          'Show password info for NAME1[,NAME2,...] in',
+          'the specified environment.') do |names|
         @operation = :show_passwords
         @names = names
       end
 
       opts.on('-r', '--remove NAME1[,NAME2,...]', Array,
-            'Remove all password info for NAME1[,NAME2,...] in the',
-            'specified environment.',
-            'For passwords in a libkv key/value store, use --folder to specify a sub-folder.') do |names|
+          'Remove password info for NAME1[,NAME2,...]',
+          'in the specified environment.') do |names|
         @operation = :remove_passwords
         @names = names
       end
 
       opts.on('-s', '--set NAME1[,NAME2,...]', Array,
-            'Set password(s) for NAME1[,NAME2,...] in the',
-            'specified environment, backing up any previous values.',
-            'For passwords in a libkv key/value store, use --folder to specify a sub-folder.') do |names|
+          'Set passwords for NAME1[,NAME2,...] in the',
+          'specified environment. Current passwords',
+          'will be backed up.') do |names|
         @operation = :set_passwords
         @names = names
       end
@@ -236,97 +229,233 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator ''
 
       opts.on('--[no-]auto-generate',
-            'Whether to auto-generate new passwords.',
-            'When disabled the user will be prompted to enter new passwords.',
-            "Defaults to #{DEFAULT_AUTO_GEN_PASSWORDS ? 'enabled' : 'disabled'}.") do |auto_gen|
+          'Whether to auto-generate new passwords.',
+          'When disabled the user will be prompted to',
+          'enter new passwords. Defaults to ' +
+          "#{translate_bool(DEFAULT_AUTO_GEN_PASSWORDS)}.") do |auto_gen|
         @password_gen_options[:auto_gen] = auto_gen
       end
 
       opts.on('--complexity COMPLEXITY', Integer,
-            'Password complexity to use when auto-generated.',
-            'For existing passwords stored a libkv key/value store, defaults to the current password complexity.',
-            "Otherwise, defaults to '#{DEFAULT_COMPLEXITY}'.",
-            'See simplib::passgen documentation for details') do |complexity|
+          'Password complexity to use when',
+          'auto-generated. For existing passwords',
+          'stored in a libkv key/value store, defaults',
+          'to the current password complexity.',
+          "Otherwise, defaults to #{DEFAULT_COMPLEXITY}.",
+          'See simplib::passgen for details.') do |complexity|
         @password_gen_options[:complexity] = complexity
       end
 
       opts.on('--[no-]complex-only',
-            'Whether to only use only complex characters when password is auto-generated.',
-            'For existing passwords in a libkv key/value store, defaults to the current password setting.',
-            "Otherwise, defaults to '#{DEFAULT_COMPLEX_ONLY}'.",
-            'See simplib::passgen documentation for details') do |complex_only|
+          'Whether to only use only complex characters',
+          'when a password is auto-generated. For',
+          'existing passwords in a libkv key/value',
+          'store, defaults to the current password',
+          'setting. Otherwise, ' +
+          "#{translate_bool(DEFAULT_COMPLEX_ONLY)} by default.") do |complex_only|
         @password_gen_options[:complex_only] = complex_only
       end
 
 
       opts.on('--backend BACKEND',
-            'Specific libkv backend to query for the specified environment.',
-            'Defaults to the default backend for simplib::passgen.',
-            '**Only** needed for passwords from simplib::passgen calls with custom libkv settings.') do |backend|
+          'Specific libkv backend to use for passwords.',
+          'Rarely needs to be set.') do |backend|
         @backend = backend
       end
 
       opts.on('-d', '--dir DIR',
-            'Fully qualified path to a legacy password store.',
-            "Overrides an environment specified by the '-e' option.") do |dir|
+          'Fully qualified path to a legacy password',
+          'store. Overrides an environment specified by',
+          "the '-e' option.") do |dir|
         @password_dir = dir
       end
 
       opts.on('-e', '--env ENV',
-            'Puppet environment to which the passgen operation will',
-            "be applied. Defaults to '#{DEFAULT_ENVIRONMENT}'.") do |env|
+          'Puppet environment to which the operation',
+          "will be applied. Defaults to '#{DEFAULT_ENVIRONMENT}'.") do |env|
         @environment = env
       end
 
       opts.on('--folder FOLDER',
-        '(Sub-)folder in which to find password names in a libkv key/value store.',
-        "For simplib::passgen('app1/admin'), the folder",
-        "would be 'app1' and the name would be 'admin'.",
-        'Defaults to the top-level folder for passgen.'  ) do |folder|
+          'Sub-folder in which to find password names',
+          'in a libkv key/value store. Defaults to the',
+          'top-level folder for simplib::passgen.' ) do |folder|
         @folder = folder
       end
 
       opts.on('--[no-]force-remove',
-            'Remove passwords without prompting user to confirm.',
-            'If unspecified, user will be prompted to confirm the',
-            'removal action for each password.',
-            "Defaults to #{DEFAULT_FORCE_REMOVE}."
+          'Remove passwords without prompting user to',
+          'confirm. When disabled, the user will be',
+          'prompted to confirm the removal for each',
+          "password. Defaults to #{translate_bool(DEFAULT_FORCE_REMOVE)}."
             ) do |force_remove|
         @force_remove = force_remove
       end
 
       opts.on('--[no-]force-value',
-            'Disable validation of user-entered passwords.',
-            "Defaults to #{DEFAULT_FORCE_VALUE}.") do |force_value|
+            'Disable validation of user-entered',
+            'passwords. Defaults to ' +
+            "#{translate_bool(DEFAULT_FORCE_VALUE)}.") do |force_value|
         @password_gen_options[:force_value] = force_value
       end
 
       opts.on('--length LENGTH', Integer,
             'Password length to use when auto-generated.',
-            'Defaults to the current password length, when password is present',
-            "provided the length is >= #{MINIMUM_PASSWORD_LENGTH}",
-            "Otherwise, defaults to '#{DEFAULT_PASSWORD_LENGTH}'.") do |length|
+            'Defaults to the current password length,',
+            'when the password already exists and its',
+            "length is >= #{MINIMUM_PASSWORD_LENGTH}. Otherwise, defaults " +
+            "to #{DEFAULT_PASSWORD_LENGTH}.") do |length|
         @password_gen_options[:length] = length
       end
     end
 
     opt_parser.parse!(args)
 
+    @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
+    @names.map! {|name| name.strip }
+    @names.delete_if { |name| name.empty? }
+    @names.sort!
+
     unless @help_requested
       if @operation.nil?
         raise OptionParser::ParseError.new("No password operation specified.\n" + opt_parser.help)
       end
+
+      case @operation
+      when :show_passwords, :set_passwords, :remove_passwords
+        if @names.empty?
+          # will only get here if someone passed in names that were all empty
+          # strings or only whitespace (i.e., an automated script error)
+          type = @operation.to_s.split('_').first
+          err_msg = "No non-empty names specified for #{type} passwords operation."
+          raise OptionParser::ParseError.new(err_msg)
+        end
+      end
+    end
+  end
+
+  # Remove a list of passwords
+  #
+  # @param names Array of names(keys) of passwords to remove
+  # @param force_remove Whether to remove password files without prompting
+  #   the user to verify the removal operation
+  #
+  def remove_passwords(manager, names, force_remove)
+    errors = []
+    names.each do |name|
+      remove = force_remove
+      unless remove
+        prompt = "Are you sure you want to remove all info for '#{name}'?".bold
+        remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
+      end
+
+      if remove
+        begin
+          manager.remove_password(name)
+          puts "Deleted '#{name}' in #{manager.location}"
+        rescue Exception => e
+          puts '  Skipped'
+          errors << "'#{name}': #{e}"
+        end
+      else
+        puts '  Skipped'
+      end
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to delete the following passwords in #{manager.location}:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  # Set a list of passwords to values selected by the user
+  #
+  # @raise Simp::Cli::ProcessingError if unable to set all passwords
+  #
+  def set_passwords(manager, names, password_gen_options)
+    names.each do |name|
+      puts "Processing Name '#{name}' in #{manager.location}"
+      begin
+        password = manager.set_password(name, password_gen_options)
+        puts "  Password set to '#{password}'"
+      rescue Exception => e
+        puts '  Skipped'
+        errors << "'#{name}': #{e}"
+      end
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
   # Prints to the console the list of Puppet environments for which
   # simp-simplib is installed
-  def show_environment_list(valid_envs)
+  #
+  # @raise Simp::Cli::ProcessingError if `puppet module list` fails
+  #   for any Puppet environment
+  def show_environment_list
+    valid_envs = find_valid_environments
     if valid_envs.empty?
-      puts 'No environments with simp-simplib installed found.'
+      puts 'No environments with simp-simplib installed were found.'
     else
-      puts "Environments:\n  #{valid_envs.sort.join("\n  ")}"
+      puts "Environments:\n  #{valid_envs.keys.sort.join("\n  ")}"
     end
     puts
+  end
+
+  # Print the list of passwords found to the console
+  #
+  # @raise Simp::Cli::ProcessingError upon any password manager failure
+  #
+  def show_name_list(manager)
+    names = manager.name_list
+    if names.empty?
+      puts "No passwords found in #{manager.location}"
+    else
+      puts "#{manager.location} Names:\n  #{names.join("\n  ")}"
+    end
+    puts
+  end
+
+  # Prints password info to the console.
+  #
+  # For each password name, prints its current value, and when present, its
+  # previous value.
+  #
+  # @param manager password manager to use to retrieve password info
+  # @param names Names of passwords to be printed
+  #
+  # @raise Simp::Cli::ProcessingError if unable to retrieve password
+  #   info for all names
+  #
+  def show_passwords(manager, names)
+    title = "#{manager.location} Passwords"
+    puts title
+    puts '='*title.length
+    names.each do |name|
+      puts "Name: #{name}"
+      begin
+        info = manager.password_info(name)
+        puts "  Current:  #{info['value']['password']}"
+        unless info['metadata']['history'].empty?
+          puts "  Previous: #{info['metadata']['history'][0][0]}"
+        end
+      rescue Exception => e
+        puts '  Skipped'
+        errors << "'#{name}': #{e}"
+      end
+      puts
+    end
+
+    unless errors.empty?
+      err_msg = "Failed to retrieve #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  def translate_bool(option)
+    option ? 'enabled' : 'disabled'
   end
 end

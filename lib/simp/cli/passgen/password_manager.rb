@@ -6,74 +6,105 @@ require 'tmpdir'
 
 class Simp::Cli::Passgen::PasswordManager
 
+  attr_reader :location
+
   def initialize(environment, backend, folder)
     @environment = environment
     @backend = backend
     @folder = folder
     @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
 
-    @location = "#{@environment} Environment"
-    @location += " in #{@backend} backend" unless @backend.nil?
+    @location = "'#{@environment}' Environment"
+    if @folder or @backend
+      qualifiers = []
+      qualifiers << "'#{@folder}' Folder" if @folder
+      qualifiers << "'#{@backend}' libkv Backend" if @backend
+      @location += ", #{qualifiers.join(', ')}"
+    end
+
     @custom_options = @backend.nil? ? nil : "{ 'backend' => '#{@backend}' }"
 
     @list = nil
   end
 
   #####################################################
-  # Operations
+  # Password Manager API
   #####################################################
-
-  # Remove a list of passwords
   #
-  # Removes the listed passwords in the key/value store.
+  # @return Array of password names if any are present; [] otherwise
   #
-  # @param names Array of names(keys) of passwords to remove
-  # @param force_remove Whether to remove password files without prompting
-  #   the user to verify the removal operation
-  #
-  def remove_passwords(names, force_remove=false)
-    return if names.empty?
-
-    errors = []
-    names.sort.each do |name|
-      remove = force_remove
-      unless remove
-        prompt = "Are you sure you want to remove all entries for '#{name}'?".bold
-        remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
-      end
-
-      fullname = @folder.nil? ? name : "#{@folder}/#{name}"
-      if remove
-        args = "'#{fullname}'"
-        args += ", #{@custom_options}" if @custom_options
-        manifest = <<-EOM
-          if empty(simplib::passgen::get(#{args})) {
-            fail('password not found')
-          } else {
-            simplib::passgen::remove(#{args})
-          }
-        EOM
-        result = apply_manifest(manifest, 'remove')
-        if result[:status]
-          puts "Deleted #{fullname} in the #{@location}"
-        else
-          errors << "'#{fullname}': #{extract_manifest_error(result[:stderr])}"
-        end
-      else
-        puts "Skipping #{fullname}"
-      end
-    end
-
-    unless errors.empty?
-      err_msg = "Failed to delete the following password keys in the #{@location}:\n  #{errors.join("\n  ")}"
+  # @raise Simp::Cli::ProcessingError if the password list operation failed or
+  #   information retrieved is malformed
+  def name_list
+    begin
+      password_list.key?('keys') ? password_list['keys'].keys.sort : []
+    rescue Exception => e
+      err_msg = "List failed: #{e}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
-  # Set a list of passwords to values selected by the user
+  # @return Hash of password information for the specified name
   #
+  #   * 'value'- Hash containing 'password' and 'salt' attributes
+  #   * 'metadata' - Hash containing a 'history' attribute, and when available,
+  #     'complexity' and 'complex_only' attributes.
+  #      * 'history' is an Array of up to the last 10 <password,salt> pairs.
+  #        history[0][0] is the most recent password and history[0][1] is its
+  #        salt.
   #
-  # @param names Array of names of passwords to set
+  # @param name Password name
+  #
+  # @raise Simp::Cli::ProcessingError if the password does not exist or the
+  #   info cannot be retrieved
+  #
+  def password_info(name)
+    begin
+      fullname = @folder.nil? ? name : "#{@folder}/#{name}"
+      info = current_password_info(fullname)
+      if info.empty?
+        err_msg = "'#{name}' password not found"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+    rescue Exception => e
+      err_msg = "Retrieve failed: #{e}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    info
+  end
+
+  # Remove a password
+  #
+  # @param name Password name
+  #
+  # @raise Simp::Cli::ProcessingError if the password does not exist or the
+  #   remove fails
+  #
+  def remove_password(name)
+    fullname = @folder.nil? ? name : "#{@folder}/#{name}"
+    args = "'#{fullname}'"
+    args += ", #{@custom_options}" if @custom_options
+    manifest = <<-EOM
+      if empty(simplib::passgen::get(#{args})) {
+        fail('password not found')
+      } else {
+        simplib::passgen::remove(#{args})
+      }
+    EOM
+
+    result = apply_manifest(manifest, 'remove')
+    unless result[:status]
+      err_msg = "Remove failed: #{extract_manifest_error(result[:stderr])}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+  end
+
+  # Set a password to a value selected by the user
+  #
+  # Sets password and generates a salt.
+  #
+  # @param name Name of the password to set
   # @param options Hash of password generation options.
   #   * Required keys:
   #     * :auto_gen - whether to auto-generate new passwords
@@ -90,109 +121,27 @@ class Simp::Cli::Passgen::PasswordManager
   #         < 'minimum_length', use the 'default_length'
   #       * When nil and the password does not exist, use 'default_length'
   #
-  def set_passwords(names, options)
-    validate_set_config(names, options)
+  # @return password The new password value
+  # @raise Simp::Cli::ProcessingError upon any failure
+  #
+  def set_password(name, options)
+    validate_set_config(options)
 
-    errors = []
-    names.sort.each do |name|
-      next if name.strip.empty?
-
+    password = nil
+    begin
       fullname = @folder.nil? ? name : "#{@folder}/#{name}"
-      puts "Processing Name '#{fullname}' in the #{@location}"
-      begin
-        password_options = merge_password_options(fullname, options)
-        password = nil
-        if options[:auto_gen]
-          password = generate_and_set_password(fullname, password_options)
-        else
-          password = get_and_set_password(fullname, password_options)
-        end
-
-        puts "  Password set to '#{password}'"
-
-     # Will report all problems at end.
-      rescue Exception => err
-        errors << "'#{name}': #{err.message}"
+      password_options = merge_password_options(fullname, options)
+      if options[:auto_gen]
+        password = generate_and_set_password(fullname, password_options)
+      else
+        password = get_and_set_password(fullname, password_options)
       end
-
-    end
-
-    unless errors.empty?
-      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+    rescue Exception => e
+      err_msg "Set failed: #{e}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
-  end
 
-  # Prints the list of password names for the environment to the console
-  def show_name_list
-    if password_list.key?('keys')
-      title = nil
-      if @folder
-        title = "#{@folder}/ #{@location} Names"
-      else
-        title = "#{@location} Names"
-      end
-
-      puts "#{title}:\n  #{password_list['keys'].keys.sort.join("\n  ")}"
-    else
-      if @folder
-        puts "No passwords found in #{@folder}/ in the #{@location}"
-      else
-        puts "No passwords found in the #{@location}"
-      end
-    end
-
-    puts
-  end
-
-  # Prints password info for the environment to the console.
-  #
-  # For each password name, prints its current value, and when present, its
-  # previous value.
-  #
-  # TODO:  Print out all other available information.
-  #
-  def show_passwords(names)
-    return if names.empty?
-
-    # Load in available password info
-# FIXME Do we really want to do this if it is not needed?
-#  For large number of passwords, this may be expensive.  Need to figure
-#  out what is more expensive...applying manifest for each name or applying
-#  manifest once for all.  See remove_passwords for example of applying individual
-#  manifests that fail if a name does not exist.
-#
-    list = password_list
-
-    title = nil
-    if @folder
-      title = "#{@folder}/ #{@location} Passwords"
-    else
-      title = "#{@location} Passwords"
-    end
-
-    puts title
-    puts '='*title.length
-    errors = []
-    names.each do |name|
-      puts "Name: #{name}"
-      if list['keys'].key?(name)
-        info = list['keys'][name]
-        puts "  Current:  #{info['value']['password']}"
-        unless info['metadata']['history'].empty?
-          puts "  Previous: #{info['metadata']['history'][0][0]}"
-        end
-      else
-        puts '  UNKNOWN'
-        errors << name
-      end
-      puts
-    end
-
-    unless errors.empty?
-      err_msg = "Failed to fetch password info for the following:\n  #{errors.join("\n  ")}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
+    password
   end
 
   #####################################################
@@ -441,7 +390,7 @@ class Simp::Cli::Passgen::PasswordManager
     valid
   end
 
-  def validate_set_config(names, options)
+  def validate_set_config(options)
     unless options.key?(:auto_gen)
       err_msg = 'Missing :auto_gen option'
       raise Simp::Cli::ProcessingError.new(err_msg)

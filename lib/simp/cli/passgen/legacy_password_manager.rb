@@ -9,63 +9,142 @@ require 'simp/cli/utils'
 class Simp::Cli::Passgen::LegacyPasswordManager
   require 'fileutils'
 
+  attr_reader :location
+
   def initialize(environment, password_dir = nil)
     @environment = environment
     @puppet_info = Simp::Cli::Utils.puppet_info(@environment)
     if password_dir.nil?
       @password_dir = get_password_dir
-      @custom_password_dir = false
+      @location = "'#{@environment}' Environment"
     else
       @password_dir = password_dir
-      @custom_password_dir = true
+      @location = @password_dir
+    end
+
+    if File.exist?(@password_dir) && !File.directory?(@password_dir)
+      err_msg = "Password directory '#{@password_dir}' is not a directory"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end
 
   #########################################################
-  # Operations
+  # Password Manager API
   #########################################################
 
-  # Remove a list of passwords
+  # @return Array of password names if the password directory exists and any
+  #   passwords are present; [] otherwise
   #
-  # Removes all password files for the list of password names, including salt
-  # files and backups of the password and salt files.
-  #
-  # @param names Array of names of passwords to remove
-  # @param force_remove Whether to remove password files without prompting
-  #   the user to verify the removal operation
-  #
-  def remove_passwords(names, force_remove=false)
-    validate_password_dir
-    validate_names(names)
+  # @raise Simp::Cli::ProcessingError if the password directory cannot be
+  #   accessed
+  def name_list
+    return [] unless Dir.exist?(@password_dir)
 
-    errors = []
-    names.each do |name|
-      remove = force_remove
-      unless remove
-        prompt = "Are you sure you want to remove all entries for '#{name}'?".bold
-        remove = Simp::Cli::Passgen::Utils::yes_or_no(prompt, false)
-      end
-
-      if remove
-        [
-          File.join(@password_dir, name),
-          File.join(@password_dir, "#{name}.salt"),
-          File.join(@password_dir, "#{name}.last"),
-          File.join(@password_dir, "#{name}.salt.last")
-        ].each do |file|
-          if File.exist?(file)
-            begin
-              File.unlink(file)
-              puts "Deleted #{file}"
-            rescue Exception => e
-              # Will report all problems at end.
-              errors << "'#{file}': #{e}"
-            end
-          end
+    names = nil
+    begin
+      Dir.chdir(@password_dir) do
+        names = Dir.glob('*').select do |x|
+          File.file?(x) && (x !~ /\.salt$|\.last$/)  # exclude salt and backup files
         end
       end
+    rescue Exception => e
+      err_msg = "List failed: #{e}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
 
-      puts
+    names.sort
+  end
+
+  # @return Hash of password information for the specified name
+  #
+  #   * 'value'- Hash containing 'password' and 'salt' attributes
+  #   * 'metadata' - Hash containing a 'history' attribute
+  #      * 'history' is an Array of up to the last 10 <password,salt> pairs.
+  #        history[0][0] is the most recent password and history[0][1] is its
+  #        salt.
+  #
+  # @param name Password name
+  #
+  # @raise Simp::Cli::ProcessingError if the files for that name do not
+  #   exist or cannot be accessed
+  #
+  def password_info(name)
+    current_password_filename = File.join(@password_dir, name)
+    unless File.exist?(current_password_filename)
+      err_msg = "'#{name}' password not present"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    info = {
+      'value'    => {
+        'password' => 'UNKNOWN',
+        'salt'     => 'UNKNOWN'
+      },
+      'metadata' => {
+        'history' => []
+      }
+    }
+
+    current_salt_filename = File.join(@password_dir, "#{name}.salt")
+    last_password_filename = File.join(@password_dir, "#{name}.last")
+    last_salt_filename =  File.join(@password_dir, "#{name}.salt.last")
+
+    begin
+      info['value']['password'] = File.read(current_password_filename).chomp
+      if File.exist?(current_salt_filename)
+        info['value']['salt'] = File.read(current_salt_filename).chomp
+      end
+
+      if File.exist?(last_password_filename)
+        last_password = File.read(last_password_filename).chomp
+        last_salt = 'UNKNOWN'
+        if File.exist?(last_salt_filename)
+          last_salt = File.read(last_salt_filename).chomp
+        end
+        info['metadata']['history'] << [ last_password, last_salt ]
+      end
+    rescue Exception => e
+      err_msg = "Retrieve failed: #{e}"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    info
+  end
+
+
+  # Remove a password
+  #
+  # Removes password and salt files for current and previous password
+  #
+  # @param name Password name
+  #
+  # @raise Simp::Cli::ProcessingError if the password does not exist or the
+  #   removal of any password file fails
+  #
+  def remove_password(name)
+    num_existing_files = 0
+    errors = []
+    [
+      File.join(@password_dir, name),
+      File.join(@password_dir, "#{name}.salt"),
+      File.join(@password_dir, "#{name}.last"),
+      File.join(@password_dir, "#{name}.salt.last")
+    ].each do |file|
+      if File.exist?(file)
+        num_existing_files += 1
+
+        begin
+          File.unlink(file)
+        rescue Exception => e
+          # Will report all problems at end.
+          errors << "'#{file}': #{e}"
+        end
+      end
+    end
+
+    if num_existing_files == 0
+      err_msg = "'#{name}' password not found"
+      raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
     unless errors.empty?
@@ -74,13 +153,13 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
   end
 
-  # Set a list of passwords to values selected by the user
+  # Set a password to a value selected by the user
   #
-  # For each password name, backups up existing password files and  creates a
-  # new password file.  Does not create a salt file, but relies on
-  # simplib::passgen to generate one the next time the catalog is compiled.
+  # Backups up existing password files and creates a new password file.
+  # Does not create a salt file, but relies on simplib::passgen to generate one
+  # the next time the catalog is compiled.
   #
-  # @param names Array of names of passwords to set
+  # @param name Name of the password to set
   # @param options Hash of password generation options.
   #   * Required keys:
   #     * :auto_gen - whether to auto-generate new passwords
@@ -97,106 +176,37 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #         < 'minimum_length', use the 'default_length'
   #       * When nil and the password does not exist, use 'default_length'
   #
-  def set_passwords(names, options)
-    validate_set_config(names, options)
+  # @return password The new password value
+  # @raise Simp::Cli::ProcessingError upon any file operation failure
+  #
+  def set_password(name, options)
+    validate_set_config(options)
 
     puppet_user = @puppet_info[:config]['user']
     puppet_group = @puppet_info[:config]['group']
-    errors = []
-    names.each do |name|
-      next if name.strip.empty?
-      password_filename = "#{@password_dir}/#{name}"
-
-      location = @custom_password_dir ? @password_dir : "#{@environment} Environment"
-      puts "Processing Name '#{name}' in #{location}"
-      begin
-        gen_options = options.dup
-        gen_options[:length] = get_password_length(password_filename, options)
-        password, generated = get_new_password(gen_options)
-        backup_password_files(password_filename) if File.exists?(password_filename)
-
+    password_filename = File.join(@password_dir, name)
+    password = nil
+    begin
+      gen_options = options.dup
+      gen_options[:length] = get_password_length(password_filename, options)
+      password, generated = get_new_password(gen_options)
+      if File.exist?(password_filename)
+        backup_password_files(password_filename)
+      else
         FileUtils.mkdir_p(@password_dir)
-        File.open(password_filename, 'w') { |file| file.puts password }
-
-        # Ensure that the ownership and permissions are correct
-        FileUtils.chown(puppet_user, puppet_group, password_filename)
-        FileUtils.chmod(0640, password_filename)
-
-        if generated
-          puts "  Password set to '#{password}'" if generated
-        else
-          puts '  Password set'
-        end
-
-      # Will report all problems at end.
-      rescue Simp::Cli::ProcessingError => err
-        errors << "'#{name}': #{err.message}"
-      rescue ArgumentError => err
-        # This will happen if group does not exist
-        err_msg = "'#{name}': Could not set password file ownership for '#{password_filename}': #{err}"
-        errors << err_msg
-      rescue SystemCallError => err
-        err_msg = "'#{name}': Error occurred while writing '#{password_filename}': #{err}"
-        errors << err_msg
       end
 
-      puts
-    end
+      File.open(password_filename, 'w') { |file| file.puts password }
 
-    unless errors.empty?
-      err_msg = "Failed to set #{errors.length} out of #{names.length} passwords:\n  #{errors.join("\n  ")}"
+      # Ensure that the ownership and permissions are correct
+      FileUtils.chown(puppet_user, puppet_group, password_filename)
+      FileUtils.chmod(0640, password_filename)
+    rescue Exception => e
+      err_msg = "Set failed: #{e}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
-  end
 
-  # Prints the list of password names for the environment to the console
-  def show_name_list
-    validate_password_dir
-    names = get_names
-    prefix = @custom_password_dir ? @password_dir : @environment
-    puts "#{prefix} Names:\n  #{names.join("\n  ")}"
-    puts
-  end
-
-  # Prints password info for the environment to the console.
-  #
-  # For each password name, prints its current value, and when present, its
-  # previous value.
-  #
-  def show_passwords(names)
-    validate_password_dir
-    validate_names(names)
-
-    prefix = @custom_password_dir ? @password_dir : "#{@environment} Environment"
-    title =  "#{prefix} Passwords"
-    puts title
-    puts '='*title.length
-    errors = []
-    names.each do |name|
-      Dir.chdir(@password_dir) do
-        begin
-          puts "Name: #{name}"
-          current_password = File.read("#{@password_dir}/#{name}")
-          last_password = nil
-          last_password_file = "#{@password_dir}/#{name}.last"
-          if File.exists?(last_password_file)
-            last_password = File.read(last_password_file)
-          end
-          puts "  Current:  #{current_password}"
-          puts "  Previous: #{last_password}" if last_password
-        rescue Exception => e
-          # Will report all problem details at end.
-          puts '  UNKNOWN'
-          errors << "'#{name}': #{e}"
-        end
-      end
-      puts
-    end
-
-    unless errors.empty?
-      err_msg = "Failed to read password info for the following:\n  #{errors.join("\n  ")}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
+    password
   end
 
   #########################################################
@@ -206,28 +216,13 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     begin
       FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
       salt_filename = password_filename + '.salt'
-      if File.exists?(salt_filename)
+      if File.exist?(salt_filename)
         FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
       end
-    rescue SystemCallError => err
-      err_msg = "Error occurred while backing up '#{password_filename}': #{err}"
+    rescue Exception => err
+      err_msg = "Error occurred while backing up '#{File.basename(password_filename)}': #{err}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
-  end
-
-  def get_names
-    names = []
-    begin
-      Dir.chdir(@password_dir) do
-        names = Dir.glob('*').select do |x|
-          File.file?(x) && (x !~ /\.salt$|\.last$/)  # exclude salt and backup files
-        end
-      end
-    rescue SystemCallError => err
-      err_msg = "Error occurred while accessing '#{@password_dir}': #{err}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-    names.sort
   end
 
   def get_new_password(options)
@@ -271,42 +266,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     length
   end
 
-  def validate_names(names)
-    if names.empty?
-      err_msg = 'No names specified.'
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
-    actual_names = get_names
-    names.each do |name|
-      unless actual_names.include?(name)
-        #FIXME print out names nicely (e.g., max 8 per line)
-        err_msg = "Invalid name '#{name}' selected.\n\nValid names: #{actual_names.join(', ')}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
-    end
-  end
-
-  def validate_password_dir
-    unless File.exist?(@password_dir)
-      err_msg = "Password directory '#{@password_dir}' does not exist"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
-    unless File.directory?(@password_dir)
-      err_msg = "Password directory '#{@password_dir}' is not a directory"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-  end
-
-  def validate_set_config(names, options)
-    validate_password_dir
-
-    if names.empty?
-      err_msg = 'No names specified.'
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
+  def validate_set_config(options)
     unless options.key?(:auto_gen)
       err_msg = 'Missing :auto_gen option'
       raise Simp::Cli::ProcessingError.new(err_msg)

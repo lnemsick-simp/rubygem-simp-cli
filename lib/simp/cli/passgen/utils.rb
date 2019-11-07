@@ -14,7 +14,7 @@ module Simp::Cli::Passgen::Utils
 
   def self.get_password(attempts = 5, validate = true)
     if (attempts == 0)
-      err_msg = 'FATAL: Too may failed attempts to enter password'
+      err_msg = 'FATAL: Too many failed attempts to enter password'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
