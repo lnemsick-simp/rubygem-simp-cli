@@ -557,7 +557,10 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
   describe '#run' do
     before :each do
       FileUtils.mkdir_p(File.join(@puppet_env_dir, 'production'))
-      @module_list_command = 'puppet module list --color=false --environment=production'
+      FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
+
+      @module_list_command_prod = 'puppet module list --color=false --environment=production'
+      @module_list_command_dev = 'puppet module list --color=false --environment=dev'
       @old_simplib_module_list_results = {
         :status => true,
         :stdout => module_list_old_simplib,
@@ -577,14 +580,18 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
     describe '--list-env option' do
       it 'lists available environments with simp-simplib installed' do
         allow(Simp::Cli::ExecUtils).to receive(:run_command).
-          with(@module_list_command).and_return(@old_simplib_module_list_results)
+          with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command).
+          with(@module_list_command_dev).and_return(@new_simplib_module_list_results)
 
         expected_output = <<-EOM
 Environments
 ============
+dev
 production
 
         EOM
+
         expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
       end
     end
@@ -597,7 +604,7 @@ production
           :stderr => missing_deps_warnings
         }
         allow(Simp::Cli::ExecUtils).to receive(:run_command).
-          with(@module_list_command).and_return(module_list_results)
+          with(@module_list_command_prod).and_return(module_list_results)
 
         expect { @passgen.run(['-l']) }.to raise_error(
           Simp::Cli::ProcessingError,
@@ -622,18 +629,22 @@ production
       context 'legacy manager' do
         before :each do
           @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command).and_return(@old_simplib_module_list_results)
+            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
         end
 
 
         it 'lists available names for default environment' do
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
-          create_password_files(@default_password_dir, names)
+          create_password_files(@prod_password_dir, names)
 
-          expected_output = <<EOM
+          expected_output = <<-EOM
 'production' Environment Names
 ==============================
 10.0.1.2
@@ -641,28 +652,20 @@ my.last.name
 production_name
 salt.and.pepper
 
-EOM
+          EOM
           expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
         end
 
         it 'lists available names for specified environment' do
-          password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-          create_password_files(password_dir, ['env1_name1'])
+          create_password_files(@dev_password_dir, ['dev_name1'])
 
-          command = 'puppet module list --color=false --environment=env1'
-          module_list_results = {
-            :status => true,
-            :stdout => module_list_old_simplib,
-            :stderr => missing_deps_warnings
-          }
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
-          expected_output = <<EOM
-'env1' Environment Names
-========================
-env1_name1
+          expected_output = <<-EOM
+'dev' Environment Names
+=======================
+dev_name1
 
-EOM
-          expect { @passgen.run(['-l', '-e', 'env1']) }.to output(expected_output).to_stdout
+          EOM
+          expect { @passgen.run(['-l', '-e', 'dev']) }.to output(expected_output).to_stdout
         end
 
       end
@@ -678,6 +681,52 @@ EOM
     # instantiated and used in Simp::Cli::Commands::Passgen#show_passwords.
     describe '--name option' do
       context 'legacy manager' do
+        before :each do
+          @password_env_dir = File.join(@var_dir, 'simp', 'environments')
+          @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+        end
+
+        it 'lists available names for default environment' do
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@prod_password_dir, names)
+
+          expected_output = <<-EOM
+'production' Environment Passwords
+==================================
+Name: my.last.name
+  Current:  my.last.name_password
+  Previous: my.last.name_backup_password
+
+Name: production_name
+  Current:  production_name_password
+  Previous: production_name_backup_password
+
+          EOM
+          args = ['-n', 'production_name,my.last.name']
+          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+        end
+
+        it 'lists available names for specified environment' do
+          create_password_files(@dev_password_dir, ['dev_name1'])
+          expected_output = <<-EOM
+'dev' Environment Passwords
+===========================
+Name: dev_name1
+  Current:  dev_name1_password
+  Previous: dev_name1_backup_password
+
+          EOM
+
+          args = ['-n', 'dev_name1', '-e', 'dev']
+          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+        end
       end
 
 #FIXME
@@ -691,6 +740,13 @@ EOM
     # instantiated and used in Simp::Cli::Commands::Passgen#remove_passwords.
     describe '--remove option' do
       context 'legacy manager' do
+        before :each do
+          @password_env_dir = File.join(@var_dir, 'simp', 'environments')
+          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command).and_return(@old_simplib_module_list_results)
+        end
       end
 
 #FIXME
@@ -704,6 +760,13 @@ EOM
     # instantiated and used in Simp::Cli::Commands::Passgen#set_passwords.
     describe '--set option' do
       context 'legacy manager' do
+        before :each do
+          @password_env_dir = File.join(@var_dir, 'simp', 'environments')
+          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command).and_return(@old_simplib_module_list_results)
+        end
       end
 
 #FIXME
@@ -718,25 +781,6 @@ EOM
 
 describe Simp::Cli::Passgen::LegacyPasswordManager do
   before :each do
-    @tmp_dir   = Dir.mktmpdir(File.basename(__FILE__))
-    @var_dir = File.join(@tmp_dir, 'vardir')
-    @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-    FileUtils.mkdir_p(@password_env_dir)
-    @env = 'production'
-    @password_dir = File.join(@password_env_dir, @env, 'simp_autofiles', 'gen_passwd')
-    @alt_password_dir = File.join(@password_env_dir, 'gen_passwd')
-
-    @user  = Etc.getpwuid(Process.uid).name
-    @group = Etc.getgrgid(Process.gid).name
-    puppet_info = {
-      :config => {
-        'user'   => @user,
-        'group'  => @group,
-        'vardir' => @var_dir
-      }
-    }
-    allow(Simp::Cli::Utils).to receive(:puppet_info).with(@env).and_return(puppet_info)
-    @manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env)
   end
 
   after :each do
