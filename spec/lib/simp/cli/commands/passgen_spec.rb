@@ -637,13 +637,14 @@ production
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@prod_password_dir, names)
+          create_password_files(@dev_password_dir, ['dev_name1'])
         end
 
 
         it 'lists available names for default environment' do
-          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
-          create_password_files(@prod_password_dir, names)
-
           expected_output = <<-EOM
 'production' Environment Names
 ==============================
@@ -657,8 +658,6 @@ salt.and.pepper
         end
 
         it 'lists available names for specified environment' do
-          create_password_files(@dev_password_dir, ['dev_name1'])
-
           expected_output = <<-EOM
 'dev' Environment Names
 =======================
@@ -691,12 +690,13 @@ dev_name1
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@prod_password_dir, names)
+          create_password_files(@dev_password_dir, ['dev_name1'])
         end
 
         it 'lists available names for default environment' do
-          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
-          create_password_files(@prod_password_dir, names)
-
           expected_output = <<-EOM
 'production' Environment Passwords
 ==================================
@@ -709,12 +709,12 @@ Name: production_name
   Previous: production_name_backup_password
 
           EOM
+
           args = ['-n', 'production_name,my.last.name']
           expect { @passgen.run(args) }.to output(expected_output).to_stdout
         end
 
         it 'lists available names for specified environment' do
-          create_password_files(@dev_password_dir, ['dev_name1'])
           expected_output = <<-EOM
 'dev' Environment Passwords
 ===========================
@@ -742,10 +742,69 @@ Name: dev_name1
       context 'legacy manager' do
         before :each do
           @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command).and_return(@old_simplib_module_list_results)
+
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@prod_password_dir, names)
+          create_password_files(@dev_password_dir, ['dev_name1'])
+        end
+
+        it 'removes names for default environment when prompt returns yes' do
+          allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+          expected_output = <<-EOM
+Processing 'my.last.name' in 'production' Environment
+  Removed 'my.last.name'
+Processing 'production_name' in 'production' Environment
+  Removed 'production_name'
+          EOM
+
+          args = ['-r', 'production_name,my.last.name']
+          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+
+          [ 'production_name', 'my.last.name' ].each do |name|
+            expect( File.exist?(File.join(@prod_password_dir, name)) ).to be false
+            expect( File.exist?(File.join(@prod_password_dir, "#{name}.last")) ).to be false
+            expect( File.exist?(File.join(@prod_password_dir, "#{name}.salt")) ).to be false
+            expect( File.exist?(File.join(@prod_password_dir, "#{name}.salt.last")) ).to be false
+          end
+        end
+
+        it 'removes names for default environment without prompting when --force-remove' do
+          expected_output = <<-EOM
+Processing '10.0.1.2' in 'production' Environment
+  Removed '10.0.1.2'
+          EOM
+
+          args = ['-r', '10.0.1.2', '--force-remove']
+          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2.last')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2.salt')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2.salt.last')) ).to be false
+        end
+
+        it 'removes names for specified environment' do
+          allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+          expected_output = <<-EOM
+Processing 'dev_name1' in 'dev' Environment
+  Removed 'dev_name1'
+          EOM
+
+          args = ['-r', 'dev_name1', '-e', 'dev']
+          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          expect( File.exist?(File.join(@prod_password_dir, 'dev_name1')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, 'dev_name1.last')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, 'dev_name1.salt')) ).to be false
+          expect( File.exist?(File.join(@prod_password_dir, 'dev_name1.salt.last')) ).to be false
         end
       end
 
@@ -762,10 +821,20 @@ Name: dev_name1
       context 'legacy manager' do
         before :each do
           @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-          @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
+          @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
+            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command).and_return(@old_simplib_module_list_results)
+        end
+#FIXME
+#Need to make sure password generating options are all passed through to manager
+        it 'sets names for default environment' do
         end
       end
 
