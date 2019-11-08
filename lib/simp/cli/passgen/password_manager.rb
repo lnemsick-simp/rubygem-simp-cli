@@ -94,16 +94,28 @@ class Simp::Cli::Passgen::PasswordManager
     fullname = @folder.nil? ? name : "#{@folder}/#{name}"
     args = "'#{fullname}'"
     args += ", #{@custom_options}" if @custom_options
+    failure_message = 'Password not found'
     manifest = <<-EOM
       if empty(simplib::passgen::get(#{args})) {
-        fail('Password not found')
+        fail('#{failure_message}')
       } else {
         simplib::passgen::remove(#{args})
       }
     EOM
 
     opts = { :title => 'Password remove', :env => @environment }
-    Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
+    begin
+      Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
+    rescue Simp::Cli::ProcessingError => e
+      if e.message.include?(failure_message)
+        # Don't spew out a bunch of error debug for a failure
+        # we have generated!
+        err_msg = "'#{name}' password not found"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      else
+        raise e
+      end
+    end
   end
 
   # Set a password to a value selected by the user (input or generated)
