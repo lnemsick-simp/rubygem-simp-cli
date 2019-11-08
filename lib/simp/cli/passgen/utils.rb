@@ -1,4 +1,5 @@
 require 'simp/cli/utils'
+require 'simp/cli/exec_utils'
 
 require 'highline'
 require 'highline/import'
@@ -73,5 +74,79 @@ module Simp::Cli::Passgen::Utils
     result = (answer.downcase[0] == 'y')
   end
 
+  # Apply a Puppet manifest with simplib::passgen commands in an environment
+  #
+  # The 'puppet apply' is customized for simplib::passgen functions
+  # * The apply sets Puppet's vardir setting explicitly to that of the puppet
+  #   master.
+  #   - vardir is used in simplib::passgen functions to determine the
+  #     location of password files.
+  #   - vardir defaults to the puppet agent's setting (a different value)
+  #     otherwise.
+  # * The apply is wrapped in 'sg  <puppet group>'  and run with a umask of
+  #   0007 to ensure any files/directories created by a simplib::passgen
+  #   function are still accessible by the puppetserver.  This group setting,
+  #   alone, is insufficient for legacy passgen files, but works when
+  #   used in conjunction with a legacy-passgen-specific 'user' setting
+  #   in manifests that create/update passwords.
+  #
+  # LIMITATION:  This 'puppet apply' operation has ONLY been tested for
+  # manifests containing simplib::passgen functions and applied as the root
+  # user.
+  #
+  # @param manifest Contents of the manifest to be applied
+  # @param opts Options
+  #  * :env   - Puppet environment to which manifest will be applied.
+  #             Defaults to 'production' when unspecified.
+  #  * :fail  - Whether to raise an exception upon manifest failure.
+  #             Defaults to false when unspecified
+  #  * :title - Brief description of operation. Used in the exception
+  #             message when apply fails and :fail is true.
+  #             Defaults to 'puppet apply' when unspecified.
+  #
+  # @raise if manifest apply fails and :fail is true
+  #
+  # TODO Replace with Puppet PAL when we drop support for Puppet 5
+  def self.apply_manifest(manifest, opts = { :env => 'production',
+      :fail => false, :title => 'puppet apply'})
+
+    options = opts.dup
+    options[:env]   = 'production'   unless options.key?(:env)
+    options[:fail]  = false          unless options.key?(:fail)
+    options[:title] = 'puppet apply' unless options.key?(:title)
+
+    puppet_info = Simp::Cli::Utils.puppet_info(options[:env])
+
+    result = nil
+    cmd = nil
+    Dir.mktmpdir( File.basename( __FILE__ ) ) do |dir|
+      manifest_file = File.join(dir, 'passgen.pp')
+      File.open(manifest_file, 'w') { |file| file.puts manifest }
+      puppet_apply = [
+        'puppet apply',
+        '--color=false',
+        "--environment=#{options[:env]}",
+        "--vardir=#{puppet_info[:config]['vardir']}",
+        manifest_file
+      ].join(' ')
+
+      cmd = "umask 0007 && sg #{puppet_info[:config]['group']} -c '#{puppet_apply}'"
+      result = Simp::Cli::ExecUtils.run_command(cmd)
+    end
+
+    if !result[:status] && options[:fail]
+      err_msg = [
+        "#{options[:title]} failed:",
+        ">>> Command: #{cmd}",
+        '>>> Manifest:',
+        manifest,
+        '>>> stderr:',
+        result[:stderr]
+      ].join("\n")
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    result
+  end
 
 end

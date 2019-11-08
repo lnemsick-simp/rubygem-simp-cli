@@ -1,8 +1,9 @@
 require 'highline/import'
 require 'simp/cli/exec_utils'
 require 'simp/cli/passgen/utils'
-#require 'simp/cli/utils'
+require 'simp/cli/utils'
 require 'tmpdir'
+require 'yaml'
 
 class Simp::Cli::Passgen::PasswordManager
 
@@ -87,22 +88,19 @@ class Simp::Cli::Passgen::PasswordManager
     args += ", #{@custom_options}" if @custom_options
     manifest = <<-EOM
       if empty(simplib::passgen::get(#{args})) {
-        fail('password not found')
+        fail('Password not found')
       } else {
         simplib::passgen::remove(#{args})
       }
     EOM
 
-    result = apply_manifest(manifest, 'remove')
-    unless result[:status]
-      err_msg = "Remove failed: #{extract_manifest_error(result[:stderr])}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
+    opts = { :title => 'Password remove', :env => @environment }
+    Simp::Cli::Passgen::apply_manifest(manifest, opts)
   end
 
-  # Set a password to a value selected by the user
+  # Set a password to a value selected by the user (input or generated)
   #
-  # Sets password and generates a salt.
+  # Generates a companion salt and then sets the password and its salt.
   #
   # @param name Name of the password to set
   # @param options Hash of password generation options.
@@ -148,145 +146,131 @@ class Simp::Cli::Passgen::PasswordManager
   # Helpers
   #####################################################
 
-  # @param manifest Contents of the manifest to be applied
-  # @param name Basename of the manifest file
-  # @param fail_on_error Whether to raise upon manifest failure.
+  # Retrieve the current password info for a name
   #
-  # @raise if manifest apply fails and fail_on_error is true
+  # @param fullname The full password name.  For legacy passgen, this is simply
+  #   the password name. For libkv, this is the password name prepended with
+  #   the folder, as appropriate.
   #
-  def apply_manifest(manifest, name = 'passgen', fail_on_error = false)
-    result = {}
-    cmd = nil
-    Dir.mktmpdir( File.basename( __FILE__ ) ) do |dir|
-      manifest_file = File.join(dir, "#{name}.pp")
-      File.open(manifest_file, 'w') { |file| file.puts manifest }
-      puppet_apply = [
-        'puppet apply',
-        '--color=false',
-        "--environment=#{@environment}",
-        # this is required for finding the correct vardir when either legacy
-        # password files or files from the auto-default key/value store are
-        # being processed
-        "--vardir=#{@puppet_info[:config]['vardir']}",
-        manifest_file
-      ].join(' ')
-
-      # umask and sg only needed for operations that modify/remove files
-      # (i.e., legacy passgen and libkv-enabled passgen using the file plugin)
-      # FIXME: Need to figure out how to handle 'group' when the manifest apply
-      #        is not run as root
-      cmd = "umask 0027 && sg #{@puppet_info[:config]['group']} -c '#{puppet_apply}'"
-      result = Simp::Cli::ExecUtils.run_command(cmd)
-      result[:cmd] = cmd
-    end
-
-    if !result[:status] && fail_on_error
-      err_msg = [
-        "#{cmd} failed:",
-        '-'*20,
-        manifest,
-        '-'*20,
-        result[:stderr]
-      ].join("\n")
-      raise Simp::Cli::ProcessingError.new(err_msg)
-    end
-
-    result
-  end
-
+  # @return Hash of password information returned by simplib::passgen::get
+  #
+  # @raise Simp::Cli::ProcessingError if apply of manifest running
+  #   simplib::passgen::get fails, the resulting YAML file containing the
+  #   password info cannot be read, or the retrieved password info does
+  #   not contain the minimum required keys
+  #
   def current_password_info(fullname)
-    args = "'#{fullname}'"
-    args += ", #{@custom_options}" if @custom_options
-    manifest = "notice(to_yaml(simplib::passgen::get(#{args})))"
-    result = apply_manifest(manifest, 'get_current', true)
-    extract_yaml_from_log(result[:stdout])
-  end
-
-#Error: Evaluation Error: Error while evaluating a Function Call, 'liztest' password not found (file: /root/remove.pp, line: 4, column: 3) on node puppet.simp.test
-#Error: Evaluation Error: Error while evaluating a Function Call, libkv Configuration Error for libkv::put with key='key': No libkv backend 'oops' with 'id' and 'type' attributes has been configured: {"backends"=>{"default"=>{"type"=>"file", "id"=>"default"}}, "backend"=>"oops", "softfail"=>false, "environment"=>"production"} (file: /root/tmp.pp, line: 1, column: 1) on node puppet.simp.test
-#
-  def extract_manifest_error(errlog)
-    err_lines = errlog.split("\n").delete_if { |line| !line.start_with?('Error: ') }
-
-    # Expecting only 1 'Function Call' error from a fail() or a simplib::passgen::xxx call
-    # FIXME This is fragile... use PAL for puppet manifest operations instead
-    err_msg = nil
-
-    if err_lines.empty?
-     err_msg = 'Unknown error'
-    else
-      match = err_lines[0].match(/.*?Function Call, (.*?) \(file: .*?, line: .*/)
-      if match
-        err_msg = match[1]
-      else
-        err_msg = err_lines[0]
-      end
-    end
-
-    err_msg
-  end
-
-  def extract_yaml_from_log(log)
-    # get rid of initial Notice text
-    yaml_string = log.gsub(/^.*?\-\-\-/m,'---')
-
-    # get rid of trailing Notice text
-    yaml_lines = yaml_string.split("\n").delete_if { |line| line =~ /^Notice:/ }
-    yaml_string = yaml_lines.join("\n")
+    tmpdir = Dir.mktmpdir( File.basename( __FILE__ ) )
+    password_info = nil
     begin
-      yaml = YAML.load(yaml_string)
-      return yaml
-    rescue Exception =>e
-      err_msg = "Failed to extract YAML: #{e}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
+      args = "'#{fullname}'"
+      args += ", #{@custom_options}" if @custom_options
+      # persist to file, because log scraping is fragile
+      result_file = File.join(tmpdir, 'password_info.yaml')
+      manifest =<<-EOM
+        $password_info = simplib::passgen::get(#{args})
+        file { '#{result_file}': content => to_yaml($password_info) }
+      EOM
+
+      opts = { :title => 'Password retrieve', :env => @environment }
+      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+
+      begin
+        password_info = YAML.load_file(result_file)
+      rescue Exception => e
+        err_msg = "Failed to load password YAML: #{e}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+
+      # make sure results are something we can process...should only have a problem
+      # if simplib::passgen::get changes and this software was not updated
+      unless valid_password_info?(password_info)
+        err_msg = "Invalid result returned from simplib::passgen::get:\n\n#{password_info}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+    ensure
+
+      FileUtils.remove_entry_secure(tmp_dir)
     end
+
+    password_info
   end
 
+  # Autogenerate both a password and companion salt and then set the
+  # <password,salt> pair.
+  #
+  # In simplib::passgen::set'user' option is essential for legacy password files or the generated
+  #  files will be owned by root and fail passgen's file validation
+  # @param fullname The full password name.  For legacy passgen, this is simply
+  #   the password name. For libkv, this is the password name prepended with
+  #   the folder, as appropriate.
+  #
+  # @param options Password generation options
+  #
   def generate_and_set_password(fullname, options)
-    manifest =<<-EOM
-      [ $password, $salt ] = simplib::passgen::gen_password_and_salt(
-        #{options[:length]},
-        #{options[:complexity]},
-        #{options[:complex_only]},
-        30) # generate timeout seconds
+    tmpdir = Dir.mktmpdir( File.basename( __FILE__ ) )
+    password = nil
+    begin
+      # persist to file, because log scraping is fragile
+      result_file = File.join(tmpdir, 'password.txt')
+      manifest =<<-EOM
+        [ $password, $salt ] = simplib::passgen::gen_password_and_salt(
+          #{options[:length]},
+          #{options[:complexity]},
+          #{options[:complex_only]},
+          30) # generate timeout seconds
 
-      $password_options = {
-      'complexity'   => #{options[:complexity]},
-      'complex_only' => #{options[:complex_only]},
-      'user'         => '#{@puppet_info[:config]['user']}'
-      }
+        $password_options = {
+          'complexity'   => #{options[:complexity]},
+          'complex_only' => #{options[:complex_only]},
+          'user'         => '#{@puppet_info[:config]['user']}'
+        }
 
-     simplib::passgen::set('#{fullname}', $password, $salt, $password_options)
-     $for_log = { 'password' => $password }
-     notice(to_yaml($for_log))
-    EOM
-    result = apply_manifest(manifest, 'get_current', true)
-    extract_yaml_from_log(result[:stdout])['password']
+        simplib::passgen::set('#{fullname}', $password, $salt, $password_options)
+
+        file { '#{result_file}': content => $password }
+      EOM
+
+      opts = { :title => 'Password generate and set', :env => @environment }
+      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+      begin
+        password = File.read(result_file)
+      rescue Exception => e
+        err_msg = "Failed to read generated password: #{e}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+    ensure
+      FileUtils.remove_entry_secure(tmp_dir)
+    end
+    password
   end
 
   # get a password from user and then generate a salt for it
   # and set both the password and salt
   def get_and_set_password(fullname, options)
     password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
+
     # NOTES:
-    # - 'complexity' and 'complex_only' are required in libkv mode, and ignored
-    #   in legacy mode
-    # - 'user' is used in legacy mode to make sure generated password files are
-    #   owned by the required user, is required when this code is run as root,
-    #   and is ignored in libkv mode
-    #   - Legacy passgen directories/files are owned by the user compiling
-    #     the manifest (puppet:puppet for the puppetserver) and have 750 and 640
-    #     permissions, respectively.
-    #   - Legacy passgen code has a sanity check that fails if any of its
-    #     directories/files are not owned by the user:group compiling the manifest.
-    #   - libkv's file plugin directories/files are owned by the user compiling
-    #     the manifest (puppet:puppet for the puppetserver) with 770 and
-    #     660 permissions, respectively ==> root can create directories/files
-    #     with puppet applies within 'sg puppet'.
+    # - 'complexity' and 'complex_only':
+    #   - Required for simplib::passgen::set in libkv mode and persisted with
+    #     the password, salt, and history.
+    #   - Unused for simplib::passgen::set in in legacy mode.
+    # - 'user':
+    #   - Required in legacy mode to make sure generated password files are
+    #     owned by the required user.
+    #   - Unused in libkv mode.
+    # - Legacy passgen directories/files are owned by the user compiling
+    #   the manifest (puppet:puppet for the puppetserver) and have 750 and 640
+    #   permissions, respectively.
+    # - Legacy passgen code has a sanity check that fails if any of its
+    #   directories/files are not owned by the user:group compiling the manifest.
+    # - libkv's file plugin directories/files are owned by the user compiling
+    #   the manifest (puppet:puppet for the puppetserver) with 770 and
+    #   660 permissions, respectively ==> root can create directories/files
+    #   with puppet applies within 'sg puppet'.
     # - Odd looking escape of single quotes below is required because
     #   \' is a back reference in gsub.
-    # FIXME: Need to figure out how to handle 'user' when the manifest apply
-    #        is not run as root
+    #
     manifest = <<-EOM
       $salt = simplib::passgen::gen_salt(30)  # 30 second generate timeout
       $password_options = {
@@ -299,7 +283,8 @@ class Simp::Cli::Passgen::PasswordManager
         $salt, $password_options)
     EOM
 
-    apply_manifest(manifest, name = 'set_user_password', true)
+    opts = { :title => 'Password set', :env => @environment }
+    Simp::Cli::Passgen::apply_manifest(manifest, opts)
     password
   end
 
@@ -343,28 +328,46 @@ class Simp::Cli::Passgen::PasswordManager
   #
   # @raise if manifest apply to retrieve the list fails, the manifest result
   #   cannot be parsed as YAML, or the result does not have the required keys
+  #
   def password_list
     return @password_list unless @password_list.nil?
 
-    args = ''
-    folder = @folder.nil? ? '/' : @folder
-    if @custom_options
-      args = "'#{folder}', #{@custom_options}"
-    else
-      args = "'#{folder}'"
-    end
+    tmpdir = Dir.mktmpdir( File.basename( __FILE__ ) )
+    list = nil
+    begin
+      args = ''
+      folder = @folder.nil? ? '/' : @folder
+      if @custom_options
+        args = "'#{folder}', #{@custom_options}"
+      else
+        args = "'#{folder}'"
+      end
 
-    # simplib::passgen::list only fails with real problems, so be sure to
-    # raise if it fails!
-    manifest = "notice(to_yaml(simplib::passgen::list(#{args})))"
-    result = apply_manifest(manifest, 'list', true)
-    list = extract_yaml_from_log(result[:stdout])
+      # persist to file, because content may be large and log scraping is fragile
+      result_file = File.join(tmpdir, 'list.yaml')
+      manifest =<<-EOM
+        $list = simplib::passgen::list(#{args})
+        file { '#{result_file}': content => to_yaml($list) }
+      EOM
 
-    # make sure results are something we can process...should only have a problem
-    # if simplib::passgen::list changes and this software was not updated
-    unless valid_password_list?(list)
-      err_msg = "Invalid result returned from simplib::passgen::list:\n\n#{list}"
-      raise Simp::Cli::ProcessingError.new(err_msg)
+      opts = { :title => 'Password list', :env => @environment }
+      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+
+      begin
+        list = YAML.load_file(result_file)
+      rescue Exception => e
+        err_msg = "Failed to load list YAML: #{e}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+
+      # make sure results are something we can process...should only have a problem
+      # if simplib::passgen::list changes and this software was not updated
+      unless valid_password_list?(list)
+        err_msg = "Invalid result returned from simplib::passgen::list:\n\n#{list}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+    ensure
+      FileUtils.remove_entry_secure(tmp_dir)
     end
 
     @password_list = list
@@ -375,9 +378,7 @@ class Simp::Cli::Passgen::PasswordManager
     unless list.empty?
       if list.key?('keys')
         list['keys'].each do |name, info|
-          unless (
-              info.key?('value') && info['value'].key?('password') &&
-              info.key?('metadata') && info['metadata'].key?('history') )
+          unless valid_password_info?(info)
             valid = false
             break
           end
@@ -390,6 +391,29 @@ class Simp::Cli::Passgen::PasswordManager
     valid
   end
 
+  # Validate minimum required password info
+  #
+  # Looking for a Hash with the following minimum structure
+  # {
+  #   'value'    => { 'password' => <password value> },
+  #   'metadata' => { 'history' => <history array> }
+  # }
+  #
+  def valid_password_info?(password_info)
+    ( password_info.key?('value') && password_info['value'].key?('password') &&
+      password_info.key?('metadata') && password_info['metadata'].key?('history') )
+  end
+
+  # Verifies options contains the following keys:
+  # - :auto_gen
+  # - :force_value
+  # - :default_length
+  # - :minimum_length
+  # - :default_complexity
+  # - :default_complex_only
+  #
+  # @raise Simp::Cli::ProcessingError if any of the required options is missing
+  #
   def validate_set_config(options)
     unless options.key?(:auto_gen)
       err_msg = 'Missing :auto_gen option'
