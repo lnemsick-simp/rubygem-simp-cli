@@ -99,7 +99,7 @@ module Simp::Cli::Passgen::Utils
   #  * :env   - Puppet environment to which manifest will be applied.
   #             Defaults to 'production' when unspecified.
   #  * :fail  - Whether to raise an exception upon manifest failure.
-  #             Defaults to false when unspecified
+  #             Defaults to true when unspecified
   #  * :title - Brief description of operation. Used in the exception
   #             message when apply fails and :fail is true.
   #             Defaults to 'puppet apply' when unspecified.
@@ -112,7 +112,7 @@ module Simp::Cli::Passgen::Utils
 
     options = opts.dup
     options[:env]   = 'production'   unless options.key?(:env)
-    options[:fail]  = false          unless options.key?(:fail)
+    options[:fail]  = true           unless options.key?(:fail)
     options[:title] = 'puppet apply' unless options.key?(:title)
 
     puppet_info = Simp::Cli::Utils.puppet_info(options[:env])

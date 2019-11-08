@@ -63,8 +63,16 @@ class Simp::Cli::Passgen::PasswordManager
     begin
       fullname = @folder.nil? ? name : "#{@folder}/#{name}"
       info = current_password_info(fullname)
+
       if info.empty?
         err_msg = "'#{name}' password not found"
+        raise Simp::Cli::ProcessingError.new(err_msg)
+      end
+
+      # make sure results are something we can process...should only have a problem
+      # if simplib::passgen::get changes and this software was not updated
+      unless valid_password_info?(info)
+        err_msg = "Invalid result returned from simplib::passgen::get:\n\n#{info}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     rescue Exception => e
@@ -95,7 +103,7 @@ class Simp::Cli::Passgen::PasswordManager
     EOM
 
     opts = { :title => 'Password remove', :env => @environment }
-    Simp::Cli::Passgen::apply_manifest(manifest, opts)
+    Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
   end
 
   # Set a password to a value selected by the user (input or generated)
@@ -135,7 +143,7 @@ class Simp::Cli::Passgen::PasswordManager
         password = get_and_set_password(fullname, password_options)
       end
     rescue Exception => e
-      err_msg "Set failed: #{e}"
+      err_msg = "Set failed: #{e}"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
@@ -157,9 +165,9 @@ class Simp::Cli::Passgen::PasswordManager
   # @raise Simp::Cli::ProcessingError if apply of manifest running
   #   simplib::passgen::get fails, the resulting YAML file containing the
   #   password info cannot be read, or the retrieved password info does
-  #   not contain the minimum required keys
+  #   not contain the minimum required keys and validate is true
   #
-  def current_password_info(fullname)
+  def current_password_info(fullname, allow_empty = false)
     tmpdir = Dir.mktmpdir( File.basename( __FILE__ ) )
     password_info = nil
     begin
@@ -173,7 +181,7 @@ class Simp::Cli::Passgen::PasswordManager
       EOM
 
       opts = { :title => 'Password retrieve', :env => @environment }
-      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+      Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
 
       begin
         password_info = YAML.load_file(result_file)
@@ -181,16 +189,8 @@ class Simp::Cli::Passgen::PasswordManager
         err_msg = "Failed to load password YAML: #{e}"
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
-
-      # make sure results are something we can process...should only have a problem
-      # if simplib::passgen::get changes and this software was not updated
-      unless valid_password_info?(password_info)
-        err_msg = "Invalid result returned from simplib::passgen::get:\n\n#{password_info}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
     ensure
-
-      FileUtils.remove_entry_secure(tmp_dir)
+      FileUtils.remove_entry_secure(tmpdir)
     end
 
     password_info
@@ -232,7 +232,7 @@ class Simp::Cli::Passgen::PasswordManager
       EOM
 
       opts = { :title => 'Password generate and set', :env => @environment }
-      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+      Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
       begin
         password = File.read(result_file)
       rescue Exception => e
@@ -240,7 +240,7 @@ class Simp::Cli::Passgen::PasswordManager
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     ensure
-      FileUtils.remove_entry_secure(tmp_dir)
+      FileUtils.remove_entry_secure(tmpdir)
     end
     password
   end
@@ -284,7 +284,7 @@ class Simp::Cli::Passgen::PasswordManager
     EOM
 
     opts = { :title => 'Password set', :env => @environment }
-    Simp::Cli::Passgen::apply_manifest(manifest, opts)
+    Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
     password
   end
 
@@ -351,7 +351,7 @@ class Simp::Cli::Passgen::PasswordManager
       EOM
 
       opts = { :title => 'Password list', :env => @environment }
-      Simp::Cli::Passgen::apply_manifest(manifest, opts)
+      Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts)
 
       begin
         list = YAML.load_file(result_file)
@@ -367,7 +367,7 @@ class Simp::Cli::Passgen::PasswordManager
         raise Simp::Cli::ProcessingError.new(err_msg)
       end
     ensure
-      FileUtils.remove_entry_secure(tmp_dir)
+      FileUtils.remove_entry_secure(tmpdir)
     end
 
     @password_list = list
