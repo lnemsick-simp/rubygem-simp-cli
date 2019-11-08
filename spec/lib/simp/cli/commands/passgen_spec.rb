@@ -750,8 +750,6 @@ Name: dev_name1
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command).and_return(@old_simplib_module_list_results)
 
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
           create_password_files(@prod_password_dir, names)
@@ -829,8 +827,10 @@ Processing 'dev_name1' in 'dev' Environment
 
           allow(Simp::Cli::ExecUtils).to receive(:run_command).
             with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command).and_return(@old_simplib_module_list_results)
+
+          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
+          create_password_files(@prod_password_dir, names)
+          create_password_files(@dev_password_dir, ['dev_name1'])
         end
 #FIXME
 #Need to make sure password generating options are all passed through to manager
