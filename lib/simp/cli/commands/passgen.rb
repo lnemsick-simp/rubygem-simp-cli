@@ -14,8 +14,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   MINIMUM_PASSWORD_LENGTH    = 8
   DEFAULT_COMPLEXITY         = 0
   DEFAULT_COMPLEX_ONLY       = false
-  DEFAULT_FORCE_VALUE        = false
   DEFAULT_FORCE_REMOVE       = false
+  DEFAULT_VALIDATE           = false
 
   # First simplib version in which simplib::passgen could use libkv
   LIBKV_SIMPLIB_VERSION = '4.0.0'
@@ -29,7 +29,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     @names = Array.new
     @password_gen_options = {
      :auto_gen             => DEFAULT_AUTO_GEN_PASSWORDS,
-     :force_value          => DEFAULT_FORCE_VALUE,  # whether to accept user passwords without validation
+     :validate             => DEFAULT_VALIDATE,
      :length               => nil,
      :default_length       => DEFAULT_PASSWORD_LENGTH,
      :minimum_length       => MINIMUM_PASSWORD_LENGTH,
@@ -263,15 +263,15 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
 
 
       opts.on('--backend BACKEND',
-          'Specific libkv backend to use for passwords.',
-          'Rarely needs to be set.') do |backend|
+          'Specific libkv backend to use for',
+          'passwords. Rarely needs to be set.') do |backend|
         @backend = backend
       end
 
       opts.on('-d', '--dir DIR',
           'Fully qualified path to a legacy password',
-          'store. Overrides an environment specified by',
-          "the '-e' option.") do |dir|
+          'store. Overrides an environment specified',
+          "by the '-e' option.") do |dir|
         @password_dir = dir
       end
 
@@ -297,11 +297,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @force_remove = force_remove
       end
 
-      opts.on('--[no-]force-value',
-            'Disable validation of user-entered',
-            'passwords. Defaults to ' +
-            "#{translate_bool(DEFAULT_FORCE_VALUE)}.") do |force_value|
-        @password_gen_options[:force_value] = force_value
+      opts.on('--[no-]validate',
+            'Enabled validation of new passwords with',
+            'libpwscore/cracklib. **Only** appropriate',
+            'for user passwords. Defaults to ' +
+            "#{translate_bool(DEFAULT_VALIDATE)}.") do |validate|
+        @password_gen_options[:validate] = validate
       end
 
       opts.on('--length LENGTH', Integer,

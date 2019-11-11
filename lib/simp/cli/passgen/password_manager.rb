@@ -126,10 +126,14 @@ class Simp::Cli::Passgen::PasswordManager
   # @param options Hash of password generation options.
   #   * Required keys:
   #     * :auto_gen - whether to auto-generate new passwords
-  #     * :force_value - whether to accept passwords entered by user without
-  #       validation
+  #     * :validate - whether to validate new passwords using
+  #       libpwquality/cracklib
   #     * :default_length - default password length of auto-generated passwords.
   #     * :minimum_length - minimum password length
+  #     * :default_complexity - default password complexity of auto-generated
+  #       passwords
+  #     * :default_complex_only- whether auto-generated passwords should only
+  #       contain complex characters
   #
   #   * Optional keys:
   #     * :length - requested length of auto-generated passwords.
@@ -260,7 +264,7 @@ class Simp::Cli::Passgen::PasswordManager
   # get a password from user and then generate a salt for it
   # and set both the password and salt
   def get_and_set_password(fullname, options)
-    password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
+    password = Simp::Cli::Passgen::Utils::get_password(5, options[:validate])
 
     # NOTES:
     # - 'complexity' and 'complex_only':
@@ -438,7 +442,7 @@ class Simp::Cli::Passgen::PasswordManager
 
   # Verifies options contains the following keys:
   # - :auto_gen
-  # - :force_value
+  # - :validate
   # - :default_length
   # - :minimum_length
   # - :default_complexity
@@ -452,8 +456,8 @@ class Simp::Cli::Passgen::PasswordManager
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
-    unless options.key?(:force_value)
-      err_msg = 'Missing :force_value option'
+    unless options.key?(:validate)
+      err_msg = 'Missing :validate option'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 

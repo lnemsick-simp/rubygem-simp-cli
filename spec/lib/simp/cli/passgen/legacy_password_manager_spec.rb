@@ -275,7 +275,7 @@ Failed to delete the following password files:
     let(:options) do
       {
         :auto_gen             => false,
-        :force_value          => false,
+        :validate             => false,
         :default_length       => 32,
         :minimum_length       => 8,
         :default_complexity   => 0,
@@ -374,7 +374,7 @@ Failed to delete the following password files:
 
     it 'fails when options is missing a required key' do
       bad_options = {
-        :force_value          => false,
+        :validate             => false,
         :default_length       => 32,
         :minimum_length       => 8,
         :default_complexity   => 0,
@@ -506,7 +506,7 @@ Failed to delete the following password files:
     let(:options) do
       {
         :auto_gen             => false,
-        :force_value          => false,
+        :validate             => false,
         :default_length       => 32,
         :minimum_length       => 8,
         :default_complexity   => 0,
@@ -531,7 +531,7 @@ Failed to delete the following password files:
 
     it 'autogenerates a password with specified characteristics when auto_gen=true' do
       new_options = options.dup
-      new_options[:auto_gen]     = true
+      new_options[:auto_gen] = true
       password,generated = @manager.get_new_password(new_options)
       expect( password.length ).to eq(options[:length])
       expect( password ).not_to match(/(#{default_chars.join('|')})/)
@@ -539,29 +539,27 @@ Failed to delete the following password files:
       expect( generated ).to be(true)
     end
 
-    it 'gathers and returns valid user password when auto_gen=false' do
+    it 'gathers and returns valid user password when auto_gen=false and :validate=true' do
       @input << "#{good_password}\n"
       @input << "#{good_password}\n"
       @input.rewind
-      expect( @manager.get_new_password(options)).to eq([good_password, false])
+      new_options = options.dup
+      new_options[:validate] = true
+      expect( @manager.get_new_password(new_options)).to eq([good_password, false])
     end
 
-    it 'gathers and returns insufficient complexity user password when auto_gen=false and force_value=true' do
-      new_options = options.dup
-      new_options[:force_value] = true
+    it 'gathers and returns insufficient complexity user password when auto_gen=false and validate=false' do
       @input << "#{bad_password}\n"
       @input << "#{bad_password}\n"
       @input.rewind
-      expect( @manager.get_new_password(new_options)).to eq([bad_password, false])
+      expect( @manager.get_new_password(options)).to eq([bad_password, false])
     end
 
-    it 'gathers and returns too short user password when auto_gen=false and force_value=true' do
-      new_options = options.dup
-      new_options[:force_value] = true
+    it 'gathers and returns too short user password when auto_gen=false and validate=false' do
       @input << "#{short_password}\n"
       @input << "#{short_password}\n"
       @input.rewind
-      expect( @manager.get_new_password(new_options)).to eq([short_password, false])
+      expect( @manager.get_new_password(options)).to eq([short_password, false])
     end
   end
 
@@ -659,7 +657,7 @@ Failed to delete the following password files:
   describe '#validate_set_config' do
     it 'fails when :auto_gen option missing' do
       bad_options = {
-        :force_value          => false,
+        :validate             => false,
         :default_length       => 32,
         :minimum_length       => 8,
         :default_complexity   => 0,
@@ -671,7 +669,7 @@ Failed to delete the following password files:
         'Missing :auto_gen option')
     end
 
-    it 'fails when :force_value option missing' do
+    it 'fails when :validate option missing' do
       bad_options = {
         :auto_gen             => false,
         :default_length       => 32,
@@ -682,13 +680,13 @@ Failed to delete the following password files:
 
       expect { @manager.validate_set_config(bad_options) }.to raise_error(
         Simp::Cli::ProcessingError,
-        'Missing :force_value option')
+        'Missing :validate option')
     end
 
     it 'fails when :default_length option missing' do
       bad_options = {
         :auto_gen             => false,
-        :force_value          => false,
+        :validate             => false,
         :minimum_length       => 8,
         :default_complexity   => 0,
         :default_complex_only => false
@@ -702,7 +700,7 @@ Failed to delete the following password files:
     it 'fails when :minimum_length option missing' do
       bad_options = {
         :auto_gen             => false,
-        :force_value          => false,
+        :validate             => false,
         :default_length       => 32,
         :default_complexity   => 0,
         :default_complex_only => false
@@ -716,7 +714,7 @@ Failed to delete the following password files:
     it 'fails when :default_complexity option missing' do
       bad_options = {
         :auto_gen             => false,
-        :force_value          => false,
+        :validate             => false,
         :minimum_length       => 8,
         :default_length       => 32,
         :default_complex_only => false
@@ -730,7 +728,7 @@ Failed to delete the following password files:
     it 'fails when :default_complex_only option missing' do
       bad_options = {
         :auto_gen           => false,
-        :force_value        => false,
+        :validate           => false,
         :minimum_length     => 8,
         :default_length     => 32,
         :default_complexity => 0,

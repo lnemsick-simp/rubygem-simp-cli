@@ -1098,42 +1098,6 @@ Failed to set 5 out of 7 passwords:
         Simp::Cli::ProcessingError,
         'Missing :auto_gen option')
     end
-
-    it 'fails when :force_value option missing' do
-      bad_options = {
-        :auto_gen       => false,
-        :default_length => 32,
-        :minimum_length => 8,
-      }
-
-      expect { @manager.set_passwords(['name1'], bad_options) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        'Missing :force_value option')
-    end
-
-    it 'fails when :default_length option missing' do
-      bad_options = {
-        :auto_gen       => false,
-        :force_value    => false,
-        :minimum_length => 8,
-      }
-
-      expect { @manager.set_passwords(['name1'], bad_options) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        'Missing :default_length option')
-    end
-
-    it 'fails when :minimum_length option missing' do
-      bad_options = {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
-      }
-
-      expect { @manager.set_passwords(['name1'], bad_options) }.to raise_error(
-        Simp::Cli::ProcessingError,
-        'Missing :minimum_length option')
-    end
   end
 
 

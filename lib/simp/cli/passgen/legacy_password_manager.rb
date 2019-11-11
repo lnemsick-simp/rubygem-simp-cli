@@ -167,12 +167,14 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # @param options Hash of password generation options.
   #   * Required keys:
   #     * :auto_gen - whether to auto-generate new passwords
-  #     * :force_value - whether to accept passwords entered by user without
-  #       validation
+  #     * :validate - whether to validate new passwords using
+  #       libpwquality/cracklib
   #     * :default_length - default password length of auto-generated passwords.
   #     * :minimum_length - minimum password length
-  #     * :default_complexity
-  #     * :default_complex_only
+  #     * :default_complexity - default password complexity of auto-generated
+  #       passwords
+  #     * :default_complex_only- whether auto-generated passwords should only
+  #       contain complex characters
   #
   #   * Optional keys:
   #     * :length - requested length of auto-generated passwords.
@@ -252,16 +254,14 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     password = ''
     generated = false
     if options[:auto_gen]
-      # Do **NOT** validate with libpwquality/cracklib because the password may
-      # not be a user password and may shorter than the minimum length that
-      # validation requires (e.g., TPM user pin of length 8).
       validate = false
       timeout_seconds = 10
       password = Simp::Cli::Utils.generate_password(options[:length],
-        options[:complexity], options[:complex_only], timeout_seconds, validate)
+        options[:complexity], options[:complex_only], timeout_seconds,
+        options[:validate])
       generated = true
     else
-      password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
+      password = Simp::Cli::Passgen::Utils::get_password(5, options[:validate])
     end
 
     [ password, generated ]
@@ -315,7 +315,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
   # Verifies options contains the following keys:
   # - :auto_gen
-  # - :force_value
+  # - :validate
   # - :default_length
   # - :minimum_length
   # - :default_complexity
@@ -329,8 +329,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
-    unless options.key?(:force_value)
-      err_msg = 'Missing :force_value option'
+    unless options.key?(:validate)
+      err_msg = 'Missing :validate option'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 
