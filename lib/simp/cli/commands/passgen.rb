@@ -99,7 +99,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
   #   for any Puppet environment
   def find_valid_environments
-    info('Looking for environments with simp-simplib installed')
+    logger.info('Looking for environments with simp-simplib installed')
 
     # grab the environments path from the production env puppet master config
     environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
