@@ -300,6 +300,26 @@ class Simp::Cli::Passgen::PasswordManager
     password
   end
 
+  # @return copy of options with :length, :complexity, and :complex_only
+  #   set to valid values
+  #
+  # - :length set as follows:
+  #   - Use :length in `options` if set and it is not too short
+  #   - Otherwise, use length of current password, if the password exists and
+  #     the length is not too short.
+  #   - Otherwise, use :default_length
+  # - :complexity is set as follows:
+  #   - Use :complexity in `options` if set
+  #   - Otherwise, use complexity of the current password, if the password
+  #     exists and the complexity is available
+  #   - Otherwise, use :default_complexity
+  # - :complex_only is set to :default_complex_only, if not set
+  #   - Use :complex_only in `options` if set
+  #   - Otherwise, use complex_only of the current password, if the password
+  #     exists and the complex_only is available
+  #   - Otherwise, use :default_complex_only
+  # - Assumes options have been validated with validate_set_config()
+  #
   def merge_password_options(fullname, options)
     password_options = options.dup
     current = current_password_info(fullname)
@@ -310,6 +330,10 @@ class Simp::Cli::Passgen::PasswordManager
       else
         password_options[:length] = options[:default_length]
       end
+    end
+
+    if password_options[:length] < options[:minimum_length]
+      password_options[:length] = options[:default_length]
     end
 
     if options[:complexity].nil?
@@ -326,10 +350,6 @@ class Simp::Cli::Passgen::PasswordManager
       else
         password_options[:complex_only] = options[:default_complex_only]
       end
-    end
-
-    if password_options[:length] < options[:minimum_length]
-      password_options[:length] = options[:default_length]
     end
 
     password_options

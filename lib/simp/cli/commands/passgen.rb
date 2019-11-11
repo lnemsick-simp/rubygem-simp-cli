@@ -385,7 +385,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       puts "Processing '#{name}' in #{manager.location}"
       begin
         password = manager.set_password(name, password_gen_options)
-        puts "  '#{name}' password set to '#{password}'"
+        puts "  '#{name}' new password: #{password}"
       rescue Exception => e
         puts "  Skipped '#{name}'"
         errors << "'#{name}': #{e}"

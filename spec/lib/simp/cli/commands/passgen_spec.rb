@@ -281,13 +281,13 @@ Failed to remove the following passwords in 'production' Environment:
 
       expected_output = <<-EOM
 Processing 'name1' in 'production' Environment
-  'name1' password set to 'name1_new_password'
+  'name1' new password: name1_new_password
 Processing 'name2' in 'production' Environment
-  'name2' password set to 'name2_new_password'
+  'name2' new password: name2_new_password
 Processing 'name3' in 'production' Environment
-  'name3' password set to 'name3_new_password'
+  'name3' new password: name3_new_password
 Processing 'name4' in 'production' Environment
-  'name4' password set to 'name4_new_password'
+  'name4' new password: name4_new_password
       EOM
 
       expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
@@ -313,13 +313,13 @@ Processing 'name4' in 'production' Environment
 
       expected_stdout = <<-EOM
 Processing 'name1' in 'production' Environment
-  'name1' password set to 'name1_new_password'
+  'name1' new password: name1_new_password
 Processing 'name2' in 'production' Environment
   Skipped 'name2'
 Processing 'name3' in 'production' Environment
   Skipped 'name3'
 Processing 'name4' in 'production' Environment
-  'name4' password set to 'name4_new_password'
+  'name4' new password: name4_new_password
       EOM
 
       expected_err_msg = <<-EOM

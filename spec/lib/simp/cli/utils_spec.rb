@@ -108,7 +108,6 @@ describe Simp::Cli::Utils do
         expect(result).to_not match(/(#{default_chars.join('|')})/)
         expect(result).to match(/(#{(unsafe_special_chars).join('|')})/)
       end
-
     end
   end
 end

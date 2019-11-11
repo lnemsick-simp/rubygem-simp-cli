@@ -274,10 +274,12 @@ Failed to delete the following password files:
 
     let(:options) do
       {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
+        :auto_gen             => false,
+        :force_value          => false,
+        :default_length       => 32,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false
       }
     end
 
@@ -372,9 +374,11 @@ Failed to delete the following password files:
 
     it 'fails when options is missing a required key' do
       bad_options = {
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
+        :force_value          => false,
+        :default_length       => 32,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false
       }
       expect { @manager.set_password('name1', bad_options) }.to raise_error(
         Simp::Cli::ProcessingError,
@@ -501,21 +505,38 @@ Failed to delete the following password files:
 
     let(:options) do
       {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
-        # If you set this too short on a SIMP-managed dev system,
-        # password generation will be in a constant retry loop!
-        :length         => 24
+        :auto_gen             => false,
+        :force_value          => false,
+        :default_length       => 32,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false,
+        :length               => 24,
+        :complexity           => 1,
+        :complex_only         => true
       }
     end
 
-    it 'autogenerates a password of specified length when auto_gen=true' do
+    let(:default_chars) do
+      (("a".."z").to_a + ("A".."Z").to_a + ("0".."9").to_a).map do|x|
+          x = Regexp.escape(x)
+      end
+    end
+
+    let(:safe_special_chars) do
+      ['@','%','-','_','+','=','~'].map do |x|
+        x = Regexp.escape(x)
+      end
+    end
+
+    it 'autogenerates a password with specified characteristics when auto_gen=true' do
       new_options = options.dup
-      new_options[:auto_gen] = true
-      expect( @manager.get_new_password(new_options)[0].length ).to eq(24)
-      expect( @manager.get_new_password(new_options)[1]).to be(true)
+      new_options[:auto_gen]     = true
+      password,generated = @manager.get_new_password(new_options)
+      expect( password.length ).to eq(options[:length])
+      expect( password ).not_to match(/(#{default_chars.join('|')})/)
+      expect( password ).to match(/(#{(safe_special_chars).join('|')})/)
+      expect( generated ).to be(true)
     end
 
     it 'gathers and returns valid user password when auto_gen=false' do
@@ -553,30 +574,29 @@ Failed to delete the following password files:
 
     let(:options) do
       {
-        :default_length => 32,
-        :minimum_length => 8
+        :default_length       => 32,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false,
       }
     end
 
     context 'input :length option unset' do
       it 'returns options with :length=:default_length when password file does not exist' do
-        expected = options.dup
-        expected[:length] = options[:default_length]
-        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+        merged_options = @manager.merge_password_options(@password_file, options)
+        expect( merged_options[:length] ).to eq(options[:default_length])
       end
 
       it 'returns options with :length=existing valid password length' do
         File.open(@password_file, 'w') { |file| file.puts '12345678' }
-        expected = options.dup
-        expected[:length] = 8
-        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+        merged_options = @manager.merge_password_options(@password_file, options)
+        expect( merged_options[:length] ).to eq(8)
       end
 
       it 'returns options with :length=:default_length when existing password length is too short' do
         File.open(@password_file, 'w') { |file| file.puts '1234567' }
-        expected = options.dup
-        expected[:length] = options[:default_length]
-        expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+        merged_options = @manager.merge_password_options(@password_file, options)
+        expect( merged_options[:length] ).to eq(options[:default_length])
       end
 
       it 'fails if it cannot read existing password file' do
@@ -591,27 +611,59 @@ Failed to delete the following password files:
       end
     end
 
-    it 'returns input options when :length exists and is valid' do
+    it 'returns options with input :length when it exists and is valid' do
       new_options = options.dup
       new_options[:length] = 48
-      expect( @manager.merge_password_options(@password_file, new_options) ).to eq(new_options)
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:length] ).to eq(new_options[:length])
     end
 
     it 'returns options with :length=:default_length when input options :length is too short' do
       new_options = options.dup
       new_options[:length] = 6
-      expected = options.dup
-      expected[:length] = options[:default_length]
-      expect( @manager.merge_password_options(@password_file, options) ).to eq(expected)
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:length] ).to eq(new_options[:default_length])
+    end
+
+    it 'returns options with input :complexity when it exists' do
+      new_options = options.dup
+      new_options[:length] = 64
+      new_options[:complexity] = 2
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:complexity] ).to eq(new_options[:complexity])
+    end
+
+    it 'returns options with :complexity=:default_complexity input missing :complexity' do
+      new_options = options.dup
+      new_options[:length] = 64
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:complexity] ).to eq(new_options[:default_complexity])
+    end
+
+    it 'returns options with input :complex_only when it exists' do
+      new_options = options.dup
+      new_options[:length] = 64
+      new_options[:complex_only] = true
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:complex_only] ).to eq(new_options[:complex_only])
+    end
+
+    it 'returns options with :complex_only=:default_complex_only input missing :complex_only' do
+      new_options = options.dup
+      new_options[:length] = 64
+      merged_options = @manager.merge_password_options(@password_file, new_options)
+      expect( merged_options[:complex_only] ).to eq(new_options[:default_complex_only])
     end
   end
 
   describe '#validate_set_config' do
     it 'fails when :auto_gen option missing' do
       bad_options = {
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
+        :force_value          => false,
+        :default_length       => 32,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false
       }
 
       expect { @manager.validate_set_config(bad_options) }.to raise_error(
@@ -621,9 +673,11 @@ Failed to delete the following password files:
 
     it 'fails when :force_value option missing' do
       bad_options = {
-        :auto_gen       => false,
-        :default_length => 32,
-        :minimum_length => 8,
+        :auto_gen             => false,
+        :default_length       => 32,
+        :default_complexity   => 0,
+        :default_complex_only => false,
+        :minimum_length       => 8
       }
 
       expect { @manager.validate_set_config(bad_options) }.to raise_error(
@@ -633,9 +687,11 @@ Failed to delete the following password files:
 
     it 'fails when :default_length option missing' do
       bad_options = {
-        :auto_gen       => false,
-        :force_value    => false,
-        :minimum_length => 8,
+        :auto_gen             => false,
+        :force_value          => false,
+        :minimum_length       => 8,
+        :default_complexity   => 0,
+        :default_complex_only => false
       }
 
       expect { @manager.validate_set_config(bad_options) }.to raise_error(
@@ -645,14 +701,44 @@ Failed to delete the following password files:
 
     it 'fails when :minimum_length option missing' do
       bad_options = {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
+        :auto_gen             => false,
+        :force_value          => false,
+        :default_length       => 32,
+        :default_complexity   => 0,
+        :default_complex_only => false
       }
 
       expect { @manager.validate_set_config(bad_options) }.to raise_error(
         Simp::Cli::ProcessingError,
         'Missing :minimum_length option')
+    end
+
+    it 'fails when :default_complexity option missing' do
+      bad_options = {
+        :auto_gen             => false,
+        :force_value          => false,
+        :minimum_length       => 8,
+        :default_length       => 32,
+        :default_complex_only => false
+      }
+
+      expect { @manager.validate_set_config(bad_options) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Missing :default_complexity option')
+    end
+
+    it 'fails when :default_complex_only option missing' do
+      bad_options = {
+        :auto_gen           => false,
+        :force_value        => false,
+        :minimum_length     => 8,
+        :default_length     => 32,
+        :default_complexity => 0,
+      }
+
+      expect { @manager.validate_set_config(bad_options) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Missing :default_complex_only option')
     end
   end
 end

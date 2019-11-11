@@ -157,7 +157,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
   end
 
-  # Set a password to a value selected by the user
+  # Set a password to a value selected by the user (input or generated)
   #
   # Backups up existing password files and creates a new password file.
   # Does not create a salt file, but relies on simplib::passgen to generate one
@@ -171,6 +171,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #       validation
   #     * :default_length - default password length of auto-generated passwords.
   #     * :minimum_length - minimum password length
+  #     * :default_complexity
+  #     * :default_complex_only
   #
   #   * Optional keys:
   #     * :length - requested length of auto-generated passwords.
@@ -179,6 +181,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #       * When nil, the password exists, and the existing password length
   #         < 'minimum_length', use the 'default_length'
   #       * When nil and the password does not exist, use 'default_length'
+  #     * :complexity
+  #     * :complex_only
   #
   # @return password The new password value
   # @raise Simp::Cli::ProcessingError upon any file operation failure
@@ -248,7 +252,13 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     password = ''
     generated = false
     if options[:auto_gen]
-      password = Simp::Cli::Utils.generate_password(options[:length])
+      # Do **NOT** validate with libpwquality/cracklib because the password may
+      # not be a user password and may shorter than the minimum length that
+      # validation requires (e.g., TPM user pin of length 8).
+      validate = false
+      timeout_seconds = 10
+      password = Simp::Cli::Utils.generate_password(options[:length],
+        options[:complexity], options[:complex_only], timeout_seconds, validate)
       generated = true
     else
       password = Simp::Cli::Passgen::Utils::get_password(5, !options[:force_value])
@@ -257,13 +267,16 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     [ password, generated ]
   end
 
-  # @return copy of options with :length set to a valid value
+  # @return copy of options with :length, :complexity, and :complex_only
+  #   set to valid values
   #
-  # - Use length of current password, if the password exists and the length
-  #   is not too short
-  # - Use the default length, if :length is set and too short or if :length
-  #   is not set and either the current password does not exist, or the
-  #   current password is too short
+  # - :length set as follows:
+  #   - Use :length in `options` if set and it is not too short
+  #   - Otherwise, use length of current password, if the password exists and
+  #     the length is not too short.
+  #   - Otherwise, use :default_length
+  # - :complexity is set to :default_complexity, if not set
+  # - :complex_only is set to :default_complex_only, if not set
   # - Assumes options have been validated with validate_set_config()
   #
   def merge_password_options(password_file, options)
@@ -288,6 +301,15 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     end
 
     password_options[:length] = length
+
+    if options[:complexity].nil?
+      password_options[:complexity] = options[:default_complexity]
+    end
+
+    if options[:complex_only].nil?
+      password_options[:complex_only] = options[:default_complex_only]
+    end
+
     password_options
   end
 
@@ -296,6 +318,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # - :force_value
   # - :default_length
   # - :minimum_length
+  # - :default_complexity
+  # - :default_complex_only
   #
   # @raise Simp::Cli::ProcessingError if any of the required options is missing
   #
@@ -317,6 +341,16 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
     unless options.key?(:minimum_length)
       err_msg = 'Missing :minimum_length option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_complexity)
+      err_msg = 'Missing :default_complexity option'
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    unless options.key?(:default_complex_only)
+      err_msg = 'Missing :default_complex_only option'
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
   end

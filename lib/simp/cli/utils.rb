@@ -108,15 +108,24 @@ module Simp::Cli::Utils
   # When validate is true, will keep regenerating the password until it passes
   # libpwquality/cracklib validation or the timeout is reached.
   #
+  # This code is nearly identical to simplib::gen_random_password, which is
+  # used in simplib::passgen.  The differences are the following additions:
+  #
+  # - Validation against a system password validator (pwscore/cracklib-check)
+  #   and password generation retry to get a password that passes the
+  #   validation.
+  # - Default complexity of 1, in order to generate user passwords that will
+  #   pass validation on a SIMP server.
+  # - Special treatment of the beginning and ending characters: Forced to be
+  #   alpha-numeric (historical reasons?)
+  #
   # @param length Length of the new password.
   #
   # @param complexity Specifies the types of characters to be used in the password
   #   * `0` => Use only Alphanumeric characters (safest)
   #   * `1` => Use Alphanumeric characters and reasonably safe symbols
   #   * `2` => Use any printable ASCII characters
-  #   * Defaults to 1 so that generated password has some special
-  #     characters.  Otherwise, will fail validation with pwscore or
-  #     cracklib-check on a SIMP server.
+  #   * Defaults to 1 so that generated password has some special characters.
   #
   # @param complex_only Use only the characters explicitly added by the complexity rules
   #
@@ -126,53 +135,44 @@ module Simp::Cli::Utils
   # @param validate Whether to regenerate the password if it fails
   #   libpwquality/cracklib validation.
   #
+  #   WARNING:  Be sure to set this to false if `length` is less than
+  #   the minimum required length for a user password.  Othewise, this
+  #   will necessarily fail!
+  #
   # @return [String] Generated password
   #
   # @raise Timeout::Error if fails to generate the password within the
   #   specified time.
   #
-  # FIXME  If the length is shorter than the minimum length configured on the
-  #        system via libpwquality or cracklib, validation will always fail.
-  #        This means this method will retry for timeout_seconds before failing.
-  def generate_password(length = DEFAULT_PASSWORD_LENGTH, complexity=1,
-      complex_only=false, timeout_seconds = 10, validate = true )
+  def generate_password(length = DEFAULT_PASSWORD_LENGTH, complexity = 1,
+      complex_only = false, timeout_seconds = 10, validate = true )
 
-    # This code is nearly identical to simplib::gen_random_password, which is
-    # used in simplib::passgen.  This version adds validation against a system
-    # password validator, retry upon validation failure, and the special
-    # treatment of the beginning and ending characters.
     require 'timeout'
+
+    default_charlist = ('a'..'z').to_a + ('A'..'Z').to_a + ('0'..'9').to_a
+    specific_charlist = nil
+    case complexity
+      when 1
+        specific_charlist = ['@','%','-','_','+','=','~']
+      when 2
+        specific_charlist = (' '..'/').to_a + ('['..'`').to_a + ('{'..'~').to_a
+      else
+    end
+
+    unless specific_charlist.nil?
+      if complex_only == true
+        charlists = [ specific_charlist ]
+      else
+        charlists = [ default_charlist, specific_charlist ]
+      end
+
+    else
+      charlists = [ default_charlist ]
+    end
+
+    charlists.flatten!
     password = ''
     Timeout::timeout(timeout_seconds) do
-      default_charlist = ("a".."z").to_a + ("A".."Z").to_a + ("0".."9").to_a
-      specific_charlist = nil
-      case complexity
-        when 1
-          specific_charlist = ['@','%','-','_','+','=','~']
-        when 2
-          specific_charlist = (' '..'/').to_a + ('['..'`').to_a + ('{'..'~').to_a
-        else
-      end
-
-      unless specific_charlist.nil?
-        if complex_only == true
-          charlists = [
-            specific_charlist
-          ]
-        else
-          charlists = [
-            default_charlist,
-            specific_charlist
-          ]
-        end
-
-      else
-        charlists = [
-          default_charlist
-        ]
-      end
-
-      charlists.flatten!
       begin
         Integer(length).times { |i| password += charlists[rand(charlists.length-1)] }
 
@@ -187,14 +187,15 @@ module Simp::Cli::Utils
             password[password.length-1] = default_charlist[rand(default_charlist.length-1)]
           end
         end
-      end
 
-      validate_password(password) if validate
-    rescue Simp::Cli::PasswordError
-      # password failed validation, so re-generate
-      password = ''
-      retry
+        validate_password(password) if validate
+      rescue Simp::Cli::PasswordError
+        # password failed validation, so re-generate
+        password = ''
+        retry
+      end
     end
+
     password
   end
 
