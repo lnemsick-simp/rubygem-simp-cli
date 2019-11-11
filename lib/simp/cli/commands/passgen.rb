@@ -60,28 +60,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     if @operation == :show_environment_list
       show_environment_list
     else
-      simplib_version = get_simplib_version(@environment)
-      if simplib_version.nil?
-        err_msg = "Invalid Puppet environment '#{@environment}': simp-simplib is not installed"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
-
       # construct the correct manager to do the work
-      manager = nil
-      if legacy_passgen?(simplib_version)
-        # This environment does not have Puppet functions to manage
-        # simplib::passgen passwords. Fallback to how these passwords were
-        # managed, before.
-        manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
-          @password_dir)
-      else
-        # This environment has Puppet functions to manage simplib::passgen
-        # passwords, whether they are stored in the legacy directory for the
-        # environment or in a key/value store via libkv.  The functions figure
-        # out where the passwords are stored and execute appropriate logic.
-        manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
-          @backend, @folder)
-      end
+      manager = get_password_manager
+
 
       case @operation
       when :show_name_list
@@ -119,6 +100,47 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     end
 
     env_info
+  end
+
+  # @return the appropriate password manager object for the version of
+  #   simplib in the environment
+  #
+  # @raise Simp::Cli::ProcessingError if the Puppet environment does not
+  #   exist, the Puppet environment does not have the simp-simplib module
+  #   installed, get_simplib_version() fails, or the password manager
+  #   constructor fails
+  #
+  def get_password_manager
+    environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
+    unless Dir.exist?(File.join(environments_dir, @environment))
+      err_msg = "Invalid Puppet environment '#{@environment}': Does not exist"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    simplib_version = get_simplib_version(@environment)
+    if simplib_version.nil?
+      err_msg = "Invalid Puppet environment '#{@environment}': simp-simplib is not installed"
+      raise Simp::Cli::ProcessingError.new(err_msg)
+    end
+
+    # construct the correct manager to do the work
+    manager = nil
+    if legacy_passgen?(simplib_version)
+      # This environment does not have Puppet functions to manage
+      # simplib::passgen passwords. Fallback to how these passwords were
+      # managed, before.
+      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
+        @password_dir)
+    else
+      # This environment has Puppet functions to manage simplib::passgen
+      # passwords, whether they are stored in the legacy directory for the
+      # environment or in a key/value store via libkv.  The functions figure
+      # out where the passwords are stored and execute appropriate logic.
+      manager = Simp::Cli::Passgen::PasswordManager.new(@environment,
+        @backend, @folder)
+    end
+
+    manager
   end
 
   # @return the version of simplib in the environment or nil if not present

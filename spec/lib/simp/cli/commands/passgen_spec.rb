@@ -598,6 +598,12 @@ production
     end
 
     describe 'setup error cases for options using a password manager' do
+      it 'fails when the environment does not exist' do
+        expect { @passgen.run(['-l', '-e', 'oops']) }.to raise_error(
+          Simp::Cli::ProcessingError,
+          "Invalid Puppet environment 'oops': Does not exist")
+      end
+
       it 'fails when the environment does not have simp-simplib installed' do
         module_list_results = {
           :status => true,
