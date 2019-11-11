@@ -170,11 +170,15 @@ module Simp::Cli::Utils
       charlists = [ default_charlist ]
     end
 
-    charlists.flatten!
     password = ''
     Timeout::timeout(timeout_seconds) do
       begin
-        Integer(length).times { |i| password += charlists[rand(charlists.length-1)] }
+        index = 0
+        Integer(length).times do |i|
+          password += charlists[index][rand(charlists[index].length-1)]
+          index += 1
+          index = 0 if index == charlists.length
+        end
 
         unless complex_only || specific_charlist.nil?
           # Ensure that the password does not start or end with a special
