@@ -180,7 +180,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator '  simp passgen -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator '  # Automatically (re)generate specific passwords in the production environment'
-      opts.separator '  simp passgen --auto-generate -s NAME1,NAME2,NAME3'
+      opts.separator '  simp passgen --auto-gen -s NAME1,NAME2,NAME3'
       opts.separator ''
       opts.separator 'COMMANDS:'
       opts.separator ''
@@ -233,7 +233,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.separator 'COMMAND MODIFIERS:'
       opts.separator ''
 
-      opts.on('--[no-]auto-generate',
+      opts.on('--[no-]auto-gen',
           'Whether to auto-generate new passwords.',
           'When disabled the user will be prompted to',
           'enter new passwords. Defaults to ' +
