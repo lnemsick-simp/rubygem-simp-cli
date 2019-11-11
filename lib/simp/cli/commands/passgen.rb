@@ -1,5 +1,6 @@
 require 'simp/cli/commands/command'
 require 'simp/cli/exec_utils'
+require 'simp/cli/logging'
 require 'simp/cli/passgen/legacy_password_manager'
 require 'simp/cli/passgen/password_manager'
 require 'simp/cli/utils'
@@ -7,6 +8,8 @@ require 'highline/import'
 
 class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   require 'fileutils'
+
+  include Simp::Cli::Logging
 
   DEFAULT_ENVIRONMENT        = 'production'
   DEFAULT_AUTO_GEN_PASSWORDS = false
@@ -39,6 +42,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
      :default_complex_only => DEFAULT_COMPLEX_ONLY
     }
     @force_remove = DEFAULT_FORCE_REMOVE
+    @verbose = 0         # Verbosity of console output:
+    #                     -1 = ERROR  and above
+    #                      0 = NOTICE and above
+    #                      1 = INFO   and above
+    #                      2 = DEBUG  and above
+    #                      3 = TRACE  and above  (developer debug)
   end
 
   #####################################################
@@ -56,6 +65,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def run(args)
     parse_command_line(args)
     return if @help_requested
+
+    # set verbosity threshold for console logging
+    set_up_global_logger
 
     if @operation == :show_environment_list
       show_environment_list
@@ -87,6 +99,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
   #   for any Puppet environment
   def find_valid_environments
+    info('Looking for environments with simp-simplib installed')
+
     # grab the environments path from the production env puppet master config
     environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
     environments = Dir.glob(File.join(environments_dir, '*'))
@@ -337,6 +351,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       end
     end
 
+    opt_parser.on('-v', '--verbose',
+            'Verbose console output (stacks).' ) do
+      @verbose  += 1
+    end
+
+
     opt_parser.parse!(args)
 
     @environment = (@environment.nil? ? DEFAULT_ENVIRONMENT : @environment)
@@ -371,7 +391,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def remove_passwords(manager, names, force_remove)
     errors = []
     names.each do |name|
-      puts "Processing '#{name}' in #{manager.location}"
+      logger.notice("Processing '#{name}' in #{manager.location}")
       remove = force_remove
       unless force_remove
         prompt = "Are you sure you want to remove all info for '#{name}'?".bold
@@ -381,13 +401,13 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       if remove
         begin
           manager.remove_password(name)
-          puts "  Removed '#{name}'"
+          logger.notice("  Removed '#{name}'")
         rescue Exception => e
-          puts "  Skipped '#{name}'"
+          logger.notice("  Skipped '#{name}'")
           errors << "'#{name}': #{e}"
         end
       else
-        puts "  Skipped '#{name}'"
+        logger.notice("  Skipped '#{name}'")
       end
     end
 
@@ -405,12 +425,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def set_passwords(manager, names, password_gen_options)
     errors = []
     names.each do |name|
-      puts "Processing '#{name}' in #{manager.location}"
+      logger.notice("Processing '#{name}' in #{manager.location}")
       begin
         password = manager.set_password(name, password_gen_options)
-        puts "  '#{name}' new password: #{password}"
+        logger.notice("  '#{name}' new password: #{password}")
       rescue Exception => e
-        puts "  Skipped '#{name}'"
+        logger.notice("  Skipped '#{name}'")
         errors << "'#{name}': #{e}"
       end
     end
@@ -422,6 +442,23 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     end
   end
 
+  # Set console log level
+  def  set_up_global_logger
+   case @verbose
+    when -1
+      console_log_level = :error
+    when 0
+      console_log_level = :notice
+    when 1
+      console_log_level = :info
+    when 2
+      console_log_level = :debug
+    else
+      console_log_level = :trace # developer debug
+    end
+    logger.levels(console_log_level)
+  end
+
   # Prints to the console the list of Puppet environments for which
   # simp-simplib is installed
   #
@@ -430,14 +467,14 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def show_environment_list
     valid_envs = find_valid_environments
     if valid_envs.empty?
-      puts 'No environments with simp-simplib installed were found.'
+      logger.notice('No environments with simp-simplib installed were found.')
     else
       title = 'Environments'
-      puts title
-      puts '='*title.length
-      puts valid_envs.keys.sort.join("\n")
+      logger.notice(title)
+      logger.notice('='*title.length)
+      logger.notice( valid_envs.keys.sort.join("\n"))
     end
-    puts
+    logger.notice
   end
 
   # Print the list of passwords found to the console
@@ -448,14 +485,14 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     begin
       names = manager.name_list
       if names.empty?
-        puts "No passwords found in #{manager.location}"
+        logger.notice("No passwords found in #{manager.location}")
       else
         title = "#{manager.location} Names"
-        puts title
-        puts '='*title.length
-        puts names.join("\n")
+        logger.notice(title)
+        logger.notice('='*title.length)
+        logger.notice(names.join("\n"))
       end
-      puts
+      logger.notice
     rescue Exception => e
       err_msg = "List for #{manager.location} failed: #{e}"
       raise Simp::Cli::ProcessingError.new(err_msg)
@@ -475,22 +512,22 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   #
   def show_passwords(manager, names)
     title = "#{manager.location} Passwords"
-    puts title
-    puts '='*title.length
+    logger.notice(title)
+    logger.notice('='*title.length)
     errors = []
     names.each do |name|
-      puts "Name: #{name}"
+      logger.notice("Name: #{name}")
       begin
         info = manager.password_info(name)
-        puts "  Current:  #{info['value']['password']}"
+        logger.notice("  Current:  #{info['value']['password']}")
         unless info['metadata']['history'].empty?
-          puts "  Previous: #{info['metadata']['history'][0][0]}"
+          logger.notice("  Previous: #{info['metadata']['history'][0][0]}")
         end
       rescue Exception => e
-        puts '  Skipped'
+        logger.notice('  Skipped')
         errors << "'#{name}': #{e}"
       end
-      puts
+      logger.notice
     end
 
     unless errors.empty?

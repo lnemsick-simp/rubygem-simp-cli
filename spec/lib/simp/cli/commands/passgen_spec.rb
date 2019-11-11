@@ -23,11 +23,23 @@ describe Simp::Cli::Commands::Passgen do
       }
     }
 
+    # expose HighLine input and output for test validataion
+    @input = StringIO.new
+    @output = StringIO.new
+    @prev_terminal = $terminal
+    $terminal = HighLine.new(@input, @output)
+
     allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
     @passgen = Simp::Cli::Commands::Passgen.new
+
+    # make sure notice and above messages are output
+    @passgen.set_up_global_logger
   end
 
   after :each do
+    @input.close
+    @output.close
+    $terminal = @prev_terminal
     FileUtils.remove_entry_secure @tmp_dir, true
   end
 
@@ -157,6 +169,9 @@ Warning: Missing dependency 'puppetlabs-apt':
   end
 
   describe '#remove_passwords' do
+    before :each do
+    end
+
     let(:names) { [ 'name1', 'name2', 'name3', 'name4' ] }
 
     it 'removes password names when force_remove=false and prompt returns yes' do
@@ -180,8 +195,8 @@ Processing 'name4' in 'production' Environment
   Removed 'name4'
       EOM
 
-      expect { @passgen.remove_passwords(mock_manager, names, false) }.
-        to output(expected_output).to_stdout
+      @passgen.remove_passwords(mock_manager, names, false)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'does not remove password names when force_remove=false and prompt returns no' do
@@ -201,8 +216,8 @@ Processing 'name4' in 'production' Environment
   Skipped 'name4'
       EOM
 
-      expect { @passgen.remove_passwords(mock_manager, names, false) }.
-        to output(expected_output).to_stdout
+      @passgen.remove_passwords(mock_manager, names, false)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'removes password names when force_remove=true' do
@@ -222,8 +237,8 @@ Processing 'name4' in 'production' Environment
   Removed 'name4'
       EOM
 
-      expect { @passgen.remove_passwords(mock_manager, names, true) }.
-        to output(expected_output).to_stdout
+      @passgen.remove_passwords(mock_manager, names, true)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'removes as many passwords as possible and fails with list of password remove failures' do
@@ -260,7 +275,8 @@ Failed to remove the following passwords in 'production' Environment:
 
       expect { @passgen.remove_passwords(mock_manager, names, true) }.to raise_error(
         Simp::Cli::ProcessingError,
-        expected_err_msg.strip).and output(expected_stdout).to_stdout
+        expected_err_msg.strip)
+      expect( @output.string ).to eq(expected_stdout)
     end
   end
 
@@ -290,8 +306,8 @@ Processing 'name4' in 'production' Environment
   'name4' new password: name4_new_password
       EOM
 
-      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
-        to output(expected_output).to_stdout
+      @passgen.set_passwords(mock_manager, names, password_gen_options)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'sets as many passwords as possible and fails with list of password set failures' do
@@ -331,14 +347,16 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
       expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
         to raise_error(
         Simp::Cli::ProcessingError,
-        expected_err_msg.strip).and output(expected_stdout).to_stdout
+        expected_err_msg.strip)
+      expect( @output.string ).to eq(expected_stdout)
     end
   end
 
   describe '#show_environment_list' do
     it 'lists no environments, when no environments exist' do
       expected_output = "No environments with simp-simplib installed were found.\n\n"
-      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
+      @passgen.show_environment_list
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'lists no environments, when no environments with simp-simplib exist' do
@@ -351,8 +369,9 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
       }
       allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
 
+      @passgen.show_environment_list
       expected_output = "No environments with simp-simplib installed were found.\n\n"
-      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'lists available environments with simp-simplib installed' do
@@ -390,7 +409,8 @@ test
 
       EOM
 
-      expect { @passgen.show_environment_list }.to output(expected_output).to_stdout
+      @passgen.show_environment_list
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'fails if puppet module list command fails' do
@@ -417,7 +437,8 @@ test
       })
 
       expected_output = "No passwords found in 'production' Environment\n\n"
-      expect { @passgen.show_name_list(mock_manager) }.to output(expected_output).to_stdout
+      @passgen.show_name_list(mock_manager)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'lists available password names' do
@@ -435,7 +456,8 @@ name3
 
       EOM
 
-      expect { @passgen.show_name_list(mock_manager) }.to output(expected_output).to_stdout
+      @passgen.show_name_list(mock_manager)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'fails when password list operation fails' do
@@ -496,7 +518,8 @@ Name: name4
 
       EOM
 
-      expect { @passgen.show_passwords(mock_manager, names) }.to output(expected_output).to_stdout
+      @passgen.show_passwords(mock_manager, names)
+      expect( @output.string ).to eq(expected_output)
     end
 
     it 'lists info for as many passwords as possible and fails with list of retrieval failures' do
@@ -547,7 +570,8 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
 
       expect { @passgen.show_passwords(mock_manager, names) }.to raise_error(
         Simp::Cli::ProcessingError,
-        expected_err_msg.strip).and output(expected_stdout).to_stdout
+        expected_err_msg.strip)
+      expect( @output.string ).to eq(expected_stdout)
     end
   end
 
@@ -593,7 +617,8 @@ production
 
         EOM
 
-        expect { @passgen.run(['-E']) }.to output(expected_output).to_stdout
+        @passgen.run(['-E'])
+        expect( @output.string ).to eq(expected_output)
       end
     end
 
@@ -661,7 +686,8 @@ production_name
 salt.and.pepper
 
           EOM
-          expect { @passgen.run(['-l']) }.to output(expected_output).to_stdout
+          @passgen.run(['-l'])
+          expect( @output.string ).to eq(expected_output)
         end
 
         it 'lists available names for specified environment' do
@@ -671,7 +697,8 @@ salt.and.pepper
 dev_name1
 
           EOM
-          expect { @passgen.run(['-l', '-e', 'dev']) }.to output(expected_output).to_stdout
+          @passgen.run(['-l', '-e', 'dev'])
+          expect( @output.string ).to eq(expected_output)
         end
 
       end
@@ -718,7 +745,8 @@ Name: production_name
           EOM
 
           args = ['-n', 'production_name,my.last.name']
-          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
         end
 
         it 'lists available names for specified environment' do
@@ -732,7 +760,8 @@ Name: dev_name1
           EOM
 
           args = ['-n', 'dev_name1', '-e', 'dev']
-          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
         end
       end
 
@@ -774,7 +803,8 @@ Processing 'production_name' in 'production' Environment
           EOM
 
           args = ['-r', 'production_name,my.last.name']
-          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
 
           [ 'production_name', 'my.last.name' ].each do |name|
             expect( File.exist?(File.join(@prod_password_dir, name)) ).to be false
@@ -791,7 +821,8 @@ Processing '10.0.1.2' in 'production' Environment
           EOM
 
           args = ['-r', '10.0.1.2', '--force-remove']
-          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
           expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2')) ).to be false
           expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2.last')) ).to be false
           expect( File.exist?(File.join(@prod_password_dir, '10.0.1.2.salt')) ).to be false
@@ -806,7 +837,8 @@ Processing 'dev_name1' in 'dev' Environment
           EOM
 
           args = ['-r', 'dev_name1', '-e', 'dev']
-          expect { @passgen.run(args) }.to output(expected_output).to_stdout
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
           expect( File.exist?(File.join(@prod_password_dir, 'dev_name1')) ).to be false
           expect( File.exist?(File.join(@prod_password_dir, 'dev_name1.last')) ).to be false
           expect( File.exist?(File.join(@prod_password_dir, 'dev_name1.salt')) ).to be false
