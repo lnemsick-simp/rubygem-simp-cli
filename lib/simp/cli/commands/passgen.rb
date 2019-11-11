@@ -164,16 +164,17 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # command. Tried to use different output formatting, but the results were
   # object dumps and not usable.
   def get_simplib_version(env)
+    logger.debug("Checking simplib version in '#{env}'")
     simplib_version = nil
     command = "puppet module list --color=false --environment=#{env}"
-    result = Simp::Cli::ExecUtils.run_command(command)
+    result = Simp::Cli::ExecUtils.run_command(command, false, logger)
 
     if result[:status]
       regex = /\s+simp-simplib\s+\(v([0-9]+\.[0-9]+\.[0-9]+)\)/m
       match = result[:stdout].match(regex)
       simplib_version = match[1] unless match.nil?
     else
-      err_msg = "#{command} failed: #{result[:stderr]}"
+      err_msg = "Unable to determine simplib version in '#{env}' environment"
       raise Simp::Cli::ProcessingError.new(err_msg)
     end
 

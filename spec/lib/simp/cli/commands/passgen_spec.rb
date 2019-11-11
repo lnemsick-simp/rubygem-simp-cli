@@ -105,7 +105,8 @@ Warning: Missing dependency 'puppetlabs-apt':
         'puppet module list --color=false --environment=dev',
         'puppet module list --color=false --environment=test'
       ].each do |command|
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(command, false, @passgen.logger).and_return(module_list_results)
       end
 
       expect( @passgen.find_valid_environments ).to eq({})
@@ -119,7 +120,8 @@ Warning: Missing dependency 'puppetlabs-apt':
         :stdout => module_list_old_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
       command = 'puppet module list --color=false --environment=dev'
@@ -128,7 +130,8 @@ Warning: Missing dependency 'puppetlabs-apt':
         :stdout => module_list_no_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
       command = 'puppet module list --color=false --environment=test'
@@ -137,7 +140,8 @@ Warning: Missing dependency 'puppetlabs-apt':
         :stdout => module_list_new_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       expected = { 'production' => '3.15.3', 'test' => '4.0.0' }
       expect( @passgen.find_valid_environments ).to eq(expected)
@@ -151,10 +155,12 @@ Warning: Missing dependency 'puppetlabs-apt':
         :stdout => '',
         :stderr => 'some failure message'
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
-      expect{ @passgen.find_valid_environments }.to raise_error(Simp::Cli::ProcessingError,
-        "#{command} failed: some failure message")
+      expect{ @passgen.find_valid_environments }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Unable to determine simplib version in 'production' environment")
     end
   end
 
@@ -344,8 +350,8 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
   'name3': Set failed: connection timed out
       EOM
 
-      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }.
-        to raise_error(
+      expect { @passgen.set_passwords(mock_manager, names, password_gen_options) }
+        .to raise_error(
         Simp::Cli::ProcessingError,
         expected_err_msg.strip)
       expect( @output.string ).to eq(expected_stdout)
@@ -367,7 +373,8 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         :stdout => module_list_no_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       @passgen.show_environment_list
       expected_output = "No environments with simp-simplib installed were found.\n\n"
@@ -382,7 +389,8 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         :stdout => module_list_old_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       FileUtils.mkdir_p(File.join(@puppet_env_dir, 'dev'))
       command = 'puppet module list --color=false --environment=dev'
@@ -391,7 +399,8 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         :stdout => module_list_no_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       FileUtils.mkdir_p(File.join(@puppet_env_dir, 'test'))
       command = 'puppet module list --color=false --environment=test'
@@ -400,7 +409,9 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         :stdout => module_list_new_simplib,
         :stderr => missing_deps_warnings
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
+
       expected_output = <<-EOM
 Environments
 ============
@@ -421,11 +432,12 @@ test
         :stdout => '',
         :stderr => 'some failure message'
       }
-      allow(Simp::Cli::ExecUtils).to receive(:run_command).with(command).and_return(module_list_results)
+      allow(Simp::Cli::ExecUtils).to receive(:run_command)
+        .with(command, false, @passgen.logger).and_return(module_list_results)
 
       expect { @passgen.show_environment_list }.to raise_error(
         Simp::Cli::ProcessingError,
-        "#{command} failed: some failure message")
+        "Unable to determine simplib version in 'production' environment")
     end
   end
 
@@ -603,11 +615,13 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
     # is called.
     describe '--list-env option' do
       it 'lists available environments with simp-simplib installed' do
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).
-          with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(@module_list_command_prod, false, @passgen.logger)
+          .and_return(@old_simplib_module_list_results)
 
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).
-          with(@module_list_command_dev).and_return(@new_simplib_module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(@module_list_command_dev, false, @passgen.logger)
+          .and_return(@new_simplib_module_list_results)
 
         expected_output = <<-EOM
 Environments
@@ -635,8 +649,9 @@ production
           :stdout => module_list_no_simplib,
           :stderr => missing_deps_warnings
         }
-        allow(Simp::Cli::ExecUtils).to receive(:run_command).
-          with(@module_list_command_prod).and_return(module_list_results)
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(@module_list_command_prod, false, @passgen.logger)
+          .and_return(module_list_results)
 
         expect { @passgen.run(['-l']) }.to raise_error(
           Simp::Cli::ProcessingError,
@@ -664,11 +679,13 @@ production
           @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
           @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
           create_password_files(@prod_password_dir, names)
@@ -719,11 +736,13 @@ dev_name1
           @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
           @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
           create_password_files(@prod_password_dir, names)
@@ -782,11 +801,13 @@ Name: dev_name1
           @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
           @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
           create_password_files(@prod_password_dir, names)
@@ -863,11 +884,13 @@ Processing 'dev_name1' in 'dev' Environment
           @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
           @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_prod).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
-          allow(Simp::Cli::ExecUtils).to receive(:run_command).
-            with(@module_list_command_dev).and_return(@old_simplib_module_list_results)
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@old_simplib_module_list_results)
 
           names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
           create_password_files(@prod_password_dir, names)
