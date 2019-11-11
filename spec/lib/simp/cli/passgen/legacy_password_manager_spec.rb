@@ -465,7 +465,7 @@ Failed to delete the following password files:
     it 'fails if password file cannot be backed up' do
       allow(FileUtils).to receive(:mv).with(any_args).and_call_original
       allow(FileUtils).to receive(:mv).with(@name1_file, @name1_backup_file,
-        :verbose => true, :force => true).and_raise(
+        :force => true).and_raise(
         Errno::EACCES, 'failed password file move')
 
       expect { @manager.backup_password_files(@name1_file) }.to raise_error(
@@ -476,7 +476,7 @@ Failed to delete the following password files:
     it 'fails if salt file cannot be backed up' do
       allow(FileUtils).to receive(:mv).with(any_args).and_call_original
       allow(FileUtils).to receive(:mv).with(@name1_salt_file, @name1_backup_salt_file,
-        :verbose => true, :force => true).and_raise(
+        :force => true).and_raise(
         Errno::EACCES, 'failed salt file move')
 
       expect { @manager.backup_password_files(@name1_file) }.to raise_error(

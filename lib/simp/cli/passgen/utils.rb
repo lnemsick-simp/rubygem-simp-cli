@@ -104,11 +104,15 @@ module Simp::Cli::Passgen::Utils
   #             message when apply fails and :fail is true.
   #             Defaults to 'puppet apply' when unspecified.
   #
+  # @param logger Optional Simp::Cli::Logging::Logger object. When not
+  #    set, logging is suppressed.
+  #
   # @raise if manifest apply fails and :fail is true
   #
-  # TODO Replace with Puppet PAL when we drop support for Puppet 5
+  # TODO Replace with Puppet PAL and rework manifests to return retrieved
+  #   values, when we drop support for Puppet 5
   def self.apply_manifest(manifest, opts = { :env => 'production',
-      :fail => false, :title => 'puppet apply'})
+      :fail => false, :title => 'puppet apply'}, logger = nil)
 
     options = opts.dup
     options[:env]   = 'production'   unless options.key?(:env)
@@ -120,6 +124,9 @@ module Simp::Cli::Passgen::Utils
     result = nil
     cmd = nil
     Dir.mktmpdir( File.basename( __FILE__ ) ) do |dir|
+      logger.debug("Creating manifest file for #{options[:title]} with" +
+        " content:\n#{manifest}") if logger
+
       manifest_file = File.join(dir, 'passgen.pp')
       File.open(manifest_file, 'w') { |file| file.puts manifest }
       puppet_apply = [
@@ -130,8 +137,17 @@ module Simp::Cli::Passgen::Utils
         manifest_file
       ].join(' ')
 
+      # We need to defer handling of error logging to the caller, so don't pas
+      # logger into run_command().  Since we are not using the logger in
+      # run_command(), we will have to duplicate the command debug logging here.
       cmd = "umask 0007 && sg #{puppet_info[:config]['group']} -c '#{puppet_apply}'"
+      logger.debug( "Executing: #{cmd}" ) if logger
       result = Simp::Cli::ExecUtils.run_command(cmd)
+    end
+
+    if logger
+      logger.debug(">>> stdout:\n#{result[:stdout]}")
+      logger.debug(">>> stderr:\n#{result[:stderr]}")
     end
 
     if !result[:status] && options[:fail]

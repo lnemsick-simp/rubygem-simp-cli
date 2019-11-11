@@ -1,4 +1,5 @@
 require 'highline/import'
+require 'simp/cli/logging'
 require 'simp/cli/passgen/utils'
 require 'simp/cli/utils'
 
@@ -8,6 +9,8 @@ require 'simp/cli/utils'
 #
 class Simp::Cli::Passgen::LegacyPasswordManager
   require 'fileutils'
+
+  include Simp::Cli::Logging
 
   attr_reader :location
 
@@ -43,10 +46,12 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # @raise Simp::Cli::ProcessingError if the password directory cannot be
   #   accessed
   def name_list
+    logger.info('Retrieving list of password names using file operations')
     return [] unless Dir.exist?(@password_dir)
 
     names = nil
     begin
+      logger.debug("Searching for password files in #{@password_dir}")
       Dir.chdir(@password_dir) do
         names = Dir.glob('*').select do |x|
           File.file?(x) && (x !~ /\.salt$|\.last$/)  # exclude salt and backup files
@@ -74,6 +79,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #   exist or cannot be accessed
   #
   def password_info(name)
+    logger.info("Retrieving password info for '#{name}' using file operations")
     current_password_filename = File.join(@password_dir, name)
     unless File.exist?(current_password_filename)
       err_msg = "'#{name}' password not present"
@@ -95,6 +101,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     last_salt_filename =  File.join(@password_dir, "#{name}.salt.last")
 
     begin
+      logger.debug("Reading for password files for '#{name}' in #{@password_dir}")
       info['value']['password'] = File.read(current_password_filename).chomp
       if File.exist?(current_salt_filename)
         info['value']['salt'] = File.read(current_salt_filename).chomp
@@ -126,6 +133,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #   removal of any password file fails
   #
   def remove_password(name)
+    logger.info("Removing password info for '#{name}' using file operations")
     num_existing_files = 0
     errors = []
     [
@@ -139,6 +147,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
 
         begin
           File.unlink(file)
+          logger.debug("Removed '#{file}'")
         rescue Exception => e
           # Will report all problems at end.
           errors << "'#{file}': #{e}"
@@ -190,6 +199,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   # @raise Simp::Cli::ProcessingError upon any file operation failure
   #
   def set_password(name, options)
+    logger.info("Setting password info for '#{name}' using file operations")
     validate_set_config(options)
 
     puppet_user = @puppet_info[:config]['user']
@@ -205,6 +215,7 @@ class Simp::Cli::Passgen::LegacyPasswordManager
         FileUtils.mkdir_p(@password_dir)
       end
 
+      logger.debug("Writing password to '#{password_filename}'")
       File.open(password_filename, 'w') { |file| file.puts password }
 
       # Ensure that the ownership and permissions are correct
@@ -232,10 +243,12 @@ class Simp::Cli::Passgen::LegacyPasswordManager
   #
   def backup_password_files(password_filename)
     begin
-      FileUtils.mv(password_filename, password_filename + '.last', :verbose => true, :force => true)
+      FileUtils.mv(password_filename, password_filename + '.last', :force => true)
+      logger.debug("Moved #{password_filename} to #{password_filename}.last")
       salt_filename = password_filename + '.salt'
       if File.exist?(salt_filename)
-        FileUtils.mv(salt_filename, salt_filename + '.last', :verbose => true, :force => true)
+        FileUtils.mv(salt_filename, salt_filename + '.last', :force => true)
+        logger.debug("Moved #{salt_filename} to #{salt_filename}.last")
       end
     rescue Exception => err
       err_msg = "Error occurred while backing up '#{File.basename(password_filename)}': #{err}"
@@ -256,11 +269,17 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     if options[:auto_gen]
       validate = false
       timeout_seconds = 10
+      logger.debug("Generating password with length=#{options[:length]}," +
+        " complexity=#{options[:complexity]}," +
+        " complex_only=#{options[:complex_only]}," +
+        " validate=#{options[:validate]}")
+
       password = Simp::Cli::Utils.generate_password(options[:length],
         options[:complexity], options[:complex_only], timeout_seconds,
         options[:validate])
       generated = true
     else
+      logger.debug("Gathering password with validate=#{options[:validate]}")
       password = Simp::Cli::Passgen::Utils::get_password(5, options[:validate])
     end
 
@@ -285,6 +304,8 @@ class Simp::Cli::Passgen::LegacyPasswordManager
     if options[:length].nil?
       if File.exist?(password_file)
         begin
+          logger.debug("Reading previous password from #{password_file}" +
+            " to determine new password length")
           password = File.read(password_file).chomp
           length = password.length
         rescue Exception => e
