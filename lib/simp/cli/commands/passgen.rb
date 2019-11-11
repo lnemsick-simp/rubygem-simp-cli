@@ -125,6 +125,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   #   constructor fails
   #
   def get_password_manager
+    logger.info("Selecting password manager for '#{@environment}'")
     environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
     unless Dir.exist?(File.join(environments_dir, @environment))
       err_msg = "Invalid Puppet environment '#{@environment}': Does not exist"
@@ -140,12 +141,14 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     # construct the correct manager to do the work
     manager = nil
     if legacy_passgen?(simplib_version)
+      logger.info('Using legacy password manager')
       # This environment does not have Puppet functions to manage
       # simplib::passgen passwords. Fallback to how these passwords were
       # managed, before.
       manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@environment,
         @password_dir)
     else
+      logger.info('Using password manager that applies simplib::passgen functions')
       # This environment has Puppet functions to manage simplib::passgen
       # passwords, whether they are stored in the legacy directory for the
       # environment or in a key/value store via libkv.  The functions figure
