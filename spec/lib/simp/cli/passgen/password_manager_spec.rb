@@ -310,7 +310,6 @@ describe Simp::Cli::Passgen::PasswordManager do
 =end
   end
 
-#FIXME
   describe '#merge_password_options' do
 
     let(:fullname) { 'name1' }
@@ -347,15 +346,6 @@ describe Simp::Cli::Passgen::PasswordManager do
 
           merged_options = @manager.merge_password_options(fullname, options)
           expect( merged_options[:length] ).to eq(options[:default_length])
-        end
-
-        it 'fails if it puppet apply to get current password fails' do
-          allow(@manager).to receive(:current_password_info).with(fullname)
-            .and_raise(Simp::Cli::ProcessingError, 'Password retrieve failed')
-
-          expect { @manager.merge_password_options(fullname, options) }
-            .to raise_error(
-            Simp::Cli::ProcessingError, 'Password retrieve failed')
         end
       end
 
@@ -428,33 +418,62 @@ describe Simp::Cli::Passgen::PasswordManager do
       end
     end
 
-=begin
     context ':complex_only option' do
       context 'input :complex_only option unset' do
+        it 'returns options with :complex_only=:default_complex_only when password does not exist' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return({})
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complex_only] ).to eq(options[:default_complex_only])
+        end
+
+        it 'returns options with :complex_only=:default_complex_only when password exists but does not have complex_only stored' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return(
+            { 'value' => { 'password' => '1234568'},
+            })
+
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complex_only] ).to eq(options[:default_complex_only])
+        end
+
+        it 'returns options with :complex_only=existing password complex_only' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return(
+            { 'value' => { 'password' => '1234568'},
+              'metadata' => { 'complex_only' => true }
+            })
+
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complex_only] ).to be true
+        end
       end
 
       context 'input :complex_only option set' do
-      end
+        it 'returns options with input :complex_only when it exists' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return(
+            { 'value' => { 'password' => '1234568'},
+              'metadata' => { 'complex_only' => false }
+            })
 
-      it 'returns options with input :complex_only when it exists' do
-        new_options = options.dup
-        new_options[:length] = 64
-        new_options[:complex_only] = true
-        merged_options = @manager.merge_password_options(@password_file, new_options)
-        expect( merged_options[:complex_only] ).to eq(new_options[:complex_only])
-      end
-
-      it 'returns options with :complex_only=:default_complex_only input missing :complex_only' do
-        new_options = options.dup
-        new_options[:length] = 64
-        merged_options = @manager.merge_password_options(@password_file, new_options)
-        expect( merged_options[:complex_only] ).to eq(new_options[:default_complex_only])
+          new_options = options.dup
+          new_options[:complex_only] = true
+          merged_options = @manager.merge_password_options(fullname, new_options)
+          expect( merged_options[:complex_only] ).to eq(new_options[:complex_only])
+        end
       end
     end
 
     context 'errors' do
+      it 'fails if it puppet apply to get current password fails' do
+        allow(@manager).to receive(:current_password_info).with(fullname)
+          .and_raise(Simp::Cli::ProcessingError, 'Password retrieve failed')
+
+        expect { @manager.merge_password_options(fullname, options) }.to \
+          raise_error(Simp::Cli::ProcessingError, 'Password retrieve failed')
+      end
     end
-=end
   end
 
   describe '#valid_password_list?' do
