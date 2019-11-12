@@ -4,7 +4,6 @@ require 'simp/cli/logging'
 require 'simp/cli/passgen/utils'
 require 'simp/cli/utils'
 require 'tmpdir'
-require 'yaml'
 
 class Simp::Cli::Passgen::PasswordManager
 
@@ -213,14 +212,8 @@ class Simp::Cli::Passgen::PasswordManager
 
       opts = { :title => 'Password retrieve', :env => @environment }
       Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts, logger)
-
-      begin
-        logger.debug('Loading password info YAML results')
-        password_info = YAML.load_file(result_file)
-      rescue Exception => e
-        err_msg = "Failed to load password YAML: #{e}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
+      password_info = Simp::Cli::Passgen::Utils::load_yaml(result_file,
+        'password info', logger)
     ensure
       FileUtils.remove_entry_secure(tmpdir)
     end
@@ -415,14 +408,8 @@ class Simp::Cli::Passgen::PasswordManager
 
       opts = { :title => 'Password list', :env => @environment }
       Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts, logger)
-
-      begin
-        logger.debug('Loading list YAML results')
-        list = YAML.load_file(result_file)
-      rescue Exception => e
-        err_msg = "Failed to load list YAML: #{e}"
-        raise Simp::Cli::ProcessingError.new(err_msg)
-      end
+      list = Simp::Cli::Passgen::Utils::load_yaml(result_file,
+        'password list', logger)
 
       # make sure results are something we can process...should only have a problem
       # if simplib::passgen::list changes and this software was not updated
