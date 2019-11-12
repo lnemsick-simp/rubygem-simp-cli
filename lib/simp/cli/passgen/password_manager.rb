@@ -446,13 +446,18 @@ class Simp::Cli::Passgen::PasswordManager
   #
   # Looking for a Hash with the following minimum structure
   # {
-  #   'value'    => { 'password' => <password value> },
-  #   'metadata' => { 'history' => <history array> }
+  #   'value'    => { 'password' => String },
+  #   'metadata' => { 'history' => Array }
   # }
   #
   def valid_password_info?(password_info)
-    ( password_info.key?('value') && password_info['value'].key?('password') &&
-      password_info.key?('metadata') && password_info['metadata'].key?('history') )
+    ( password_info.key?('value') &&
+      password_info['value'].key?('password') &&
+      password_info['value']['password'].is_a?(String) &&
+      password_info.key?('metadata') &&
+      password_info['metadata'].key?('history') &&
+      password_info['metadata']['history'].is_a?(Array)
+    )
   end
 
   # Verifies options contains the following keys:

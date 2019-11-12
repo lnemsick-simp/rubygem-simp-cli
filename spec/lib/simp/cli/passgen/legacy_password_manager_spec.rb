@@ -590,78 +590,86 @@ Failed to delete the following password files:
       }
     end
 
-    context 'input :length option unset' do
-      it 'returns options with :length=:default_length when password file does not exist' do
-        merged_options = @manager.merge_password_options(@password_file, options)
-        expect( merged_options[:length] ).to eq(options[:default_length])
+    context ':length option' do
+      context 'input :length option unset' do
+        it 'returns options with :length=:default_length when password file does not exist' do
+          merged_options = @manager.merge_password_options(@password_file, options)
+          expect( merged_options[:length] ).to eq(options[:default_length])
+        end
+
+        it 'returns options with :length=existing valid password length' do
+          File.open(@password_file, 'w') { |file| file.puts '12345678' }
+          merged_options = @manager.merge_password_options(@password_file, options)
+          expect( merged_options[:length] ).to eq(8)
+        end
+
+        it 'returns options with :length=:default_length when existing password length is too short' do
+          File.open(@password_file, 'w') { |file| file.puts '1234567' }
+          merged_options = @manager.merge_password_options(@password_file, options)
+          expect( merged_options[:length] ).to eq(options[:default_length])
+        end
+
+        it 'fails if it cannot read existing password file' do
+          File.open(@password_file, 'w') { |file| file.puts "name_password" }
+          allow(File).to receive(:read).with(any_args).and_call_original
+          allow(File).to receive(:read).with(@password_file).and_raise(
+            Errno::EACCES, 'failed password file read')
+
+          expect { @manager.merge_password_options(@password_file, options) }.to raise_error(
+            Simp::Cli::ProcessingError,
+            "Error occurred while reading '#{@password_file}': Permission denied - failed password file read")
+        end
       end
 
-      it 'returns options with :length=existing valid password length' do
-        File.open(@password_file, 'w') { |file| file.puts '12345678' }
-        merged_options = @manager.merge_password_options(@password_file, options)
-        expect( merged_options[:length] ).to eq(8)
-      end
+      context 'input :length option set' do
+        it 'returns options with input :length when it exists and is valid' do
+          new_options = options.dup
+          new_options[:length] = 48
+          merged_options = @manager.merge_password_options(@password_file, new_options)
+          expect( merged_options[:length] ).to eq(new_options[:length])
+        end
 
-      it 'returns options with :length=:default_length when existing password length is too short' do
-        File.open(@password_file, 'w') { |file| file.puts '1234567' }
-        merged_options = @manager.merge_password_options(@password_file, options)
-        expect( merged_options[:length] ).to eq(options[:default_length])
-      end
-
-      it 'fails if it cannot read existing password file' do
-        File.open(@password_file, 'w') { |file| file.puts "name_password" }
-        allow(File).to receive(:read).with(any_args).and_call_original
-        allow(File).to receive(:read).with(@password_file).and_raise(
-          Errno::EACCES, 'failed password file read')
-
-        expect { @manager.merge_password_options(@password_file, options) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Error occurred while reading '#{@password_file}': Permission denied - failed password file read")
+        it 'returns options with :length=:default_length when input options :length is too short' do
+          new_options = options.dup
+          new_options[:length] = 6
+          merged_options = @manager.merge_password_options(@password_file, new_options)
+          expect( merged_options[:length] ).to eq(new_options[:default_length])
+        end
       end
     end
 
-    it 'returns options with input :length when it exists and is valid' do
-      new_options = options.dup
-      new_options[:length] = 48
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:length] ).to eq(new_options[:length])
+    context ':complexity option' do
+      it 'returns options with input :complexity when it exists' do
+        new_options = options.dup
+        new_options[:length] = 64
+        new_options[:complexity] = 2
+        merged_options = @manager.merge_password_options(@password_file, new_options)
+        expect( merged_options[:complexity] ).to eq(new_options[:complexity])
+      end
+
+      it 'returns options with :complexity=:default_complexity when input missing :complexity' do
+        new_options = options.dup
+        new_options[:length] = 64
+        merged_options = @manager.merge_password_options(@password_file, new_options)
+        expect( merged_options[:complexity] ).to eq(new_options[:default_complexity])
+      end
     end
 
-    it 'returns options with :length=:default_length when input options :length is too short' do
-      new_options = options.dup
-      new_options[:length] = 6
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:length] ).to eq(new_options[:default_length])
-    end
+    context ':complex_only option' do
+      it 'returns options with input :complex_only when it exists' do
+        new_options = options.dup
+        new_options[:length] = 64
+        new_options[:complex_only] = true
+        merged_options = @manager.merge_password_options(@password_file, new_options)
+        expect( merged_options[:complex_only] ).to eq(new_options[:complex_only])
+      end
 
-    it 'returns options with input :complexity when it exists' do
-      new_options = options.dup
-      new_options[:length] = 64
-      new_options[:complexity] = 2
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:complexity] ).to eq(new_options[:complexity])
-    end
-
-    it 'returns options with :complexity=:default_complexity input missing :complexity' do
-      new_options = options.dup
-      new_options[:length] = 64
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:complexity] ).to eq(new_options[:default_complexity])
-    end
-
-    it 'returns options with input :complex_only when it exists' do
-      new_options = options.dup
-      new_options[:length] = 64
-      new_options[:complex_only] = true
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:complex_only] ).to eq(new_options[:complex_only])
-    end
-
-    it 'returns options with :complex_only=:default_complex_only input missing :complex_only' do
-      new_options = options.dup
-      new_options[:length] = 64
-      merged_options = @manager.merge_password_options(@password_file, new_options)
-      expect( merged_options[:complex_only] ).to eq(new_options[:default_complex_only])
+      it 'returns options with :complex_only=:default_complex_only when input missing :complex_only' do
+        new_options = options.dup
+        new_options[:length] = 64
+        merged_options = @manager.merge_password_options(@password_file, new_options)
+        expect( merged_options[:complex_only] ).to eq(new_options[:default_complex_only])
+      end
     end
   end
 
