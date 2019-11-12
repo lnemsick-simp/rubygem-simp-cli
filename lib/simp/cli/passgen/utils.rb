@@ -4,6 +4,7 @@ require 'simp/cli/exec_utils'
 require 'highline'
 require 'highline/import'
 require 'yaml'
+require 'tmpdir'
 
 HighLine.colorize_strings
 

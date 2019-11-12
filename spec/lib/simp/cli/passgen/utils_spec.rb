@@ -156,12 +156,167 @@ EOM
 
   end
 
-#FIXME
   describe '.apply_manifest' do
+    let(:manifest) { "simplib::passgen::remove('name')" }
+    let(:cmd_prefix) {
+      "umask 0007 && sg puppet -c 'puppet apply --color=false" +
+        " --environment=production --vardir=/server/var/dir"
+    }
+
+    before :each do
+      puppet_info = {
+        :config => {
+          'user'   => 'puppet',
+          'group'  => 'puppet',
+          'vardir' => '/server/var/dir'
+        }
+      }
+      allow(Simp::Cli::Utils).to receive(:puppet_info).and_return(puppet_info)
+
+    end
+
     context 'without logger' do
+      it 'returns apply result when apply succeeds' do
+        cmd_regex = /#{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        result = {
+          :status => true,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning messages'
+        }
+
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        expect( Simp::Cli::Passgen::Utils.apply_manifest(manifest) ).to eq(result)
+      end
+
+      it 'returns apply result when apply fails and :fail option is unspecified' do
+        cmd_regex = /#{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        result = {
+          :status => false,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning and Error messages'
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        expect( Simp::Cli::Passgen::Utils.apply_manifest(manifest) ).to eq(result)
+      end
+
+      it 'returns apply result when apply fails and :fail option is false' do
+        cmd_regex = /#{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        result = {
+          :status => false,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning and Error messages'
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        opts = { :fail => false }
+        expect( Simp::Cli::Passgen::Utils.apply_manifest(manifest, opts) ).to eq(result)
+      end
+
+      it 'fails when apply fails and :fail option is true' do
+        cmd_regex = /#{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        result = {
+          :status => false,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning and Error messages'
+        }
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        opts = { :fail => true }
+        first = "puppet apply failed:\n>>> Command:"
+        last = "\n>>> Manifest:\n#{Regexp.escape(manifest)}\n>>> stderr:\n#{result[:stderr]}"
+        expected_regex = /#{first} #{Regexp.escape(cmd_prefix)} .*passgen.pp'#{last}/m
+        expect{ Simp::Cli::Passgen::Utils.apply_manifest(manifest, opts) }
+          .to raise_error(Simp::Cli::ProcessingError, expected_regex)
+      end
+
+      it 'uses opts :env and :title when specified' do
+        cmd_prefix_dev = cmd_prefix.gsub('production', 'dev')
+        cmd_regex = /#{Regexp.escape(cmd_prefix_dev)} .*passgen.pp/
+        result = {
+          :status => false,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning and Error messages'
+        }
+
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        opts = { :env => 'dev', :title => 'password remove', :fail => true }
+        first = "password remove failed:\n>>> Command:"
+        last = "\n>>> Manifest:\n#{Regexp.escape(manifest)}\n>>> stderr:\n#{result[:stderr]}"
+        expected_regex = /#{first} #{Regexp.escape(cmd_prefix_dev)} .*passgen.pp'#{last}/m
+        expect{ Simp::Cli::Passgen::Utils.apply_manifest(manifest, opts) }
+          .to raise_error(Simp::Cli::ProcessingError, expected_regex)
+      end
     end
 
     context 'with logger' do
+      it 'returns apply result when apply succeeds' do
+        cmd_regex = /#{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        result = {
+          :status => true,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning messages'
+        }
+
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        logger = PassgenUtilsMockLogger.new
+        expect( Simp::Cli::Passgen::Utils.apply_manifest(manifest, {}, logger) )
+          .to eq(result)
+
+        expected = "Creating manifest file for puppet apply with content:\n#{manifest}"
+        expect( logger.messages[0] ).to eq(expected)
+
+        expected_regex = /Executing: #{Regexp.escape(cmd_prefix)} .*passgen.pp/
+        expect( logger.messages[1] ).to match(expected_regex)
+
+        expected = ">>> stdout:\n#{result[:stdout]}"
+        expect( logger.messages[2] ).to eq(expected)
+
+        expected = ">>> stderr:\n#{result[:stderr]}"
+        expect( logger.messages[3] ).to eq(expected)
+      end
+
+      it 'uses opts :env and :title when specified' do
+        cmd_prefix_dev = cmd_prefix.gsub('production', 'dev')
+        cmd_regex = /#{Regexp.escape(cmd_prefix_dev)} .*passgen.pp/
+        result = {
+          :status => false,
+          :stdout => 'Puppet Notice messages',
+          :stderr => 'Puppet Warning and Error messages'
+        }
+
+        allow(Simp::Cli::ExecUtils).to receive(:run_command)
+          .with(cmd_regex).and_return(result)
+
+        opts = { :env => 'dev', :title => 'password remove', :fail => true }
+        logger = PassgenUtilsMockLogger.new
+        first = "password remove failed:\n>>> Command:"
+        last = "\n>>> Manifest:\n#{Regexp.escape(manifest)}\n>>> stderr:\n#{result[:stderr]}"
+        expected_regex = /#{first} #{Regexp.escape(cmd_prefix_dev)} .*passgen.pp'#{last}/m
+        expect{ Simp::Cli::Passgen::Utils.apply_manifest(manifest, opts, logger) }
+          .to raise_error(Simp::Cli::ProcessingError, expected_regex)
+
+        expected = "Creating manifest file for password remove with content:\n#{manifest}"
+        expect( logger.messages[0] ).to eq(expected)
+
+        expected_regex = /Executing: #{Regexp.escape(cmd_prefix_dev)} .*passgen.pp/
+        expect( logger.messages[1] ).to match(expected_regex)
+
+        expected = ">>> stdout:\n#{result[:stdout]}"
+        expect( logger.messages[2] ).to eq(expected)
+
+        expected = ">>> stderr:\n#{result[:stderr]}"
+        expect( logger.messages[3] ).to eq(expected)
+      end
     end
   end
 
