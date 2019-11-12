@@ -47,6 +47,17 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
   #
   # Password Manager API tests
   #
+  describe 'location' do
+    it 'returns string with environment when custom dir is not specified' do
+      expect( @manager.location ).to eq("'#{@env}' Environment")
+    end
+
+    it 'returns string with custom dir when specified' do
+      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
+      expect( manager.location ).to eq(@alt_password_dir)
+    end
+  end
+
   describe '#name_list' do
     it 'returns empty array  when no names exist' do
       FileUtils.mkdir_p(@password_dir)
@@ -200,7 +211,7 @@ describe Simp::Cli::Passgen::LegacyPasswordManager do
       expect(File.exist?(@name2_salt_file)).to eq false
     end
 
-    it 'removes password, backup, and salt files in specified password dir when force_remove=true' do
+    it 'removes password, backup, and salt files in specified password dir' do
       create_password_files(@alt_password_dir, ['env1_name4'])
 
 
