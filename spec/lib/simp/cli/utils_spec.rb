@@ -109,5 +109,15 @@ describe Simp::Cli::Utils do
         expect(result).to match(/(#{(unsafe_special_chars).join('|')})/)
       end
     end
+
+    context 'errors' do
+      it 'fails when password generation times out' do
+        allow(Timeout).to receive(:timeout).with(20).and_raise(
+          Timeout::Error, 'Timeout')
+
+        expect{ Simp::Cli::Utils.generate_password(8, 2, true, 20, true) }
+          .to raise_error(Timeout::Error, 'Timeout')
+      end
+    end
   end
 end

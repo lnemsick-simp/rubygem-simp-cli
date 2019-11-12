@@ -14,6 +14,19 @@ module Simp::Cli::Passgen; end
 module Simp::Cli::Passgen::Utils
   require 'fileutils'
 
+  # Prompt the user for a password, read it in and then optionally
+  # validate it
+  #
+  # @param attempts Number of times to attempt to gather the password
+  #  from the user
+  #
+  # @param validate Whether to validate the password against
+  #   libwpquality/cracklib
+  #
+  # @return password
+  # @raise  Simp::Cli::ProcessingError if a valid password cannot be
+  #   gathered within specified number of attempts
+  #
   def self.get_password(attempts = 5, validate = true)
     if (attempts == 0)
       err_msg = 'FATAL: Too many failed attempts to enter password'
@@ -48,7 +61,13 @@ module Simp::Cli::Passgen::Utils
     password
   end
 
+  # Validate the password using libpwquality/cracklib validators
+  # installed on the local system.
+  #
   # TODO  What about validating length, complexity, complex_only?
+  #
+  # @return whether password validated
+  #
   def self.validate_password(password)
     begin
       Simp::Cli::Utils::validate_password(password)
@@ -59,6 +78,11 @@ module Simp::Cli::Passgen::Utils
     end
   end
 
+  # Prompt the user for a 'yes' or 'no' value, read it in and convert
+  # to a Boolean
+  #
+  # @return true if the user entered a yes variant; false otherwise
+  #
   def self.yes_or_no(prompt, default_yes)
     question = "> #{prompt.bold}: "
     answer = ask(question) do |q|

@@ -262,8 +262,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       # to have the option to display all available info, espcially for libkv-stored
       # passwords. Would default to brief (current behavior).
 
-#FIXME add a debug or verbose option to help debug problems
-#
       opts.on('-h', '--help', 'Print this message.') do
         puts opts
         @help_requested = true
