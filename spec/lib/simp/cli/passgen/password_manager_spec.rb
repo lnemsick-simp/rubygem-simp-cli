@@ -24,6 +24,9 @@ describe Simp::Cli::Passgen::PasswordManager do
     @backend = 'backend3'
     @folder = 'app1'
     @manager_custom = Simp::Cli::Passgen::PasswordManager.new(@env, @backend, @folder)
+
+    @simple_name = 'name1'
+    @complex_name = "#{@folder}/#{@simple_name}"
   end
 
   #
@@ -225,89 +228,165 @@ describe Simp::Cli::Passgen::PasswordManager do
   # Helper tests.  Since most helper methods are tested in Password
   # Manager API tests, only use cases not otherwise tested are exercised here.
   #
-#FIXME
-  describe '#generate_and_set_password' do
+  describe '#current_password_info' do
+    let(:password_info) { {
+      'value'    => { 'password' => 'password1', 'salt' => 'salt' },
+      'metadata' => { 'history'  => [] }
+    } }
+
+    it 'applies manifest to retrieve password info and then returns it' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+        .and_return(password_info)
+
+      expect( @manager.current_password_info(@simple_name) )
+        .to eq(password_info)
+    end
+
+    it 'applies manifest with folder and backend to retrieve password info and then returns it' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+        .and_return(password_info)
+
+      expect( @manager_custom.current_password_info(@complex_name) )
+        .to eq(password_info)
+    end
+
+    it 'fails when manifest apply fails' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, 'Password retrieve failed')
+
+      expect{ @manager_custom.current_password_info(@complex_name) }
+        .to raise_error(Simp::Cli::ProcessingError, 'Password retrieve failed')
+    end
+
+    it 'fails when interim password info YAML fails to load' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml).and_raise(
+        Simp::Cli::ProcessingError, 'Failed to load password info YAML')
+
+      expect{ @manager_custom.current_password_info(@complex_name) }
+        .to raise_error(Simp::Cli::ProcessingError,
+        'Failed to load password info YAML')
+    end
   end
 
-  describe '#get_and_set_password' do
-#FIXME
-=begin
-    before :each do
-      @input = StringIO.new
-      @output = StringIO.new
-      @prev_terminal = $terminal
-      $terminal = HighLine.new(@input, @output)
-    end
-
-    after :each do
-      @input.close
-      @output.close
-      $terminal = @prev_terminal
-    end
-
-    let(:good_password) { 'A=V3ry=Go0d=P@ssw0r!' }
-    let(:bad_password) { 'password' }
-    let(:short_password) { 'short' }
-
+  describe '#generate_and_set_password' do
     let(:options) do
       {
-        :auto_gen             => false,
-        :validate             => false,
-        :default_length       => 32,
-        :minimum_length       => 8,
-        :default_complexity   => 0,
-        :default_complex_only => false,
-        :length               => 24,
-        :complexity           => 1,
-        :complex_only         => true
+        :length       => 32,
+        :complexity   => 0,
+        :complex_only => false
       }
     end
 
-    let(:default_chars) do
-      (("a".."z").to_a + ("A".."Z").to_a + ("0".."9").to_a).map do|x|
-          x = Regexp.escape(x)
-      end
+    let(:generated_password) { 'new generated password' }
+
+    it 'applies manifest to generate and set <password,salt> and then returns generated password' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(File).to receive(:read).with(/password.txt$/).and_return(generated_password)
+
+      expect( @manager.generate_and_set_password(@simple_name, options) )
+        .to eq(generated_password)
     end
 
-    let(:safe_special_chars) do
-      ['@','%','-','_','+','=','~'].map do |x|
-        x = Regexp.escape(x)
-      end
+    it 'applies manifest with folder and backend to generate and set <password,salt> and then returns generated password' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(File).to receive(:read).with(/password.txt$/).and_return(generated_password)
+
+      expect( @manager_custom.generate_and_set_password(@complex_name, options) )
+        .to eq(generated_password)
     end
 
-    it 'autogenerates a password with specified characteristics when auto_gen=true' do
-      new_options = options.dup
-      new_options[:auto_gen] = true
-      password,generated = @manager.get_new_password(new_options)
-      expect( password.length ).to eq(options[:length])
-      expect( password ).not_to match(/(#{default_chars.join('|')})/)
-      expect( password ).to match(/(#{(safe_special_chars).join('|')})/)
-      expect( generated ).to be(true)
+    it 'fails when manifest apply fails' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, "Password generate and set failed")
+
+      expect{ @manager.generate_and_set_password(@simple_name, options) }
+        .to raise_error(
+        Simp::Cli::ProcessingError, "Password generate and set failed")
     end
 
-    it 'gathers and returns valid user password when auto_gen=false and :validate=true' do
-      @input << "#{good_password}\n"
-      @input << "#{good_password}\n"
-      @input.rewind
-      new_options = options.dup
-      new_options[:validate] = true
-      expect( @manager.get_new_password(new_options)).to eq([good_password, false])
+    it 'fails when interim password file cannot be read' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(File).to receive(:read).with(/password.txt$/).and_raise(
+         Errno::EACCES, 'password file read failed')
+
+      expect{ @manager.generate_and_set_password(@simple_name, options) }
+        .to raise_error(
+        Simp::Cli::ProcessingError,
+        'Failed to read generated password: Permission denied - password file read failed')
+    end
+  end
+
+  describe '#get_and_set_password' do
+    let(:options) do
+      {
+        :length       => 32,
+        :complexity   => 0,
+        :complex_only => false,
+        :validate     => false
+      }
     end
 
-    it 'gathers and returns insufficient complexity user password when auto_gen=false and validate=false' do
-      @input << "#{bad_password}\n"
-      @input << "#{bad_password}\n"
-      @input.rewind
-      expect( @manager.get_new_password(options)).to eq([bad_password, false])
+    let(:user_input_password) { 'new password from user' }
+
+    it 'gets password from user, applies manifest to generate salt and set pair, and then returns password' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:get_password)
+        .and_return(user_input_password)
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      expect( @manager.get_and_set_password(@simple_name, options) )
+        .to eq(user_input_password)
     end
 
-    it 'gathers and returns too short user password when auto_gen=false and validate=false' do
-      @input << "#{short_password}\n"
-      @input << "#{short_password}\n"
-      @input.rewind
-      expect( @manager.get_new_password(options)).to eq([short_password, false])
+    it 'gets password from user, applies manifest with folder and backend to generate salt and set pair, and then returns password' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:get_password)
+        .and_return(user_input_password)
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      expect( @manager_custom.get_and_set_password(@complex_name, options) )
+        .to eq(user_input_password)
     end
-=end
+
+    it 'fails if user password input fails' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:get_password)
+        .and_raise(Simp::Cli::ProcessingError,
+        'FATAL: Too many failed attempts to enter password')
+
+      expect{ @manager.get_and_set_password(@simple_name, options) }
+        .to raise_error(
+        Simp::Cli::ProcessingError,
+        'FATAL: Too many failed attempts to enter password')
+    end
+
+    it 'fails when manifest apply fails' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:get_password)
+        .and_return(user_input_password)
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, "Password set failed")
+
+      expect{ @manager.get_and_set_password(@simple_name, options) }
+        .to raise_error(
+        Simp::Cli::ProcessingError, "Password set failed")
+    end
   end
 
   describe '#merge_password_options' do
@@ -473,6 +552,74 @@ describe Simp::Cli::Passgen::PasswordManager do
         expect { @manager.merge_password_options(fullname, options) }.to \
           raise_error(Simp::Cli::ProcessingError, 'Password retrieve failed')
       end
+    end
+  end
+
+  describe '#password_list' do
+    let(:password_list) { {
+      'keys' => {
+        'name1' => {
+          'value'    => { 'password' => 'password1', 'salt' => 'salt1'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => [
+              ['password1_old', 'salt1_old'],
+              ['password1_old_old', 'salt1_old_old']
+            ]
+          }
+        },
+        'name2' => {
+          'value' => { 'password' => 'password2', 'salt' => 'salt2'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => []
+          }
+        }
+      }
+    } }
+
+    it 'applies manifest to retrieve password list and then returns it' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+        .and_return(password_list)
+
+      expect( @manager.password_list ).to eq(password_list)
+    end
+
+    it 'fails when manifest apply fails' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, 'Password list retrieve failed')
+
+      expect{ @manager_custom.password_list }.to raise_error(
+        Simp::Cli::ProcessingError, 'Password list retrieve failed')
+    end
+
+    it 'fails when interim password list YAML fails to load' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml).and_raise(
+        Simp::Cli::ProcessingError, 'Failed to load password list YAML')
+
+      expect{ @manager_custom.password_list }.to raise_error(
+        Simp::Cli::ProcessingError, 'Failed to load password list YAML')
+    end
+
+    it 'fails when retrieved password list is missing required keys' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      invalid_password_list = { 'oops' => {} }
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+        .and_return(invalid_password_list)
+
+      expect{ @manager_custom.password_list }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Invalid result returned from simplib::passgen::list:\n\n#{invalid_password_list}")
     end
   end
 

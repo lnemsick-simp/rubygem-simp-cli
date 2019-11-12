@@ -1,16 +1,6 @@
 require 'simp/cli/passgen/utils'
 require 'spec_helper'
-
-class PassgenUtilsMockLogger
-  attr_accessor :messages
-  def initialize
-     @messages = []
-  end
-
-  def debug(message)
-    @messages << message
-  end
-end
+require 'test_utils/mock_logger'
 
 describe Simp::Cli::Passgen::Utils do
   describe '.get_password' do
@@ -268,21 +258,21 @@ EOM
         allow(Simp::Cli::ExecUtils).to receive(:run_command)
           .with(cmd_regex).and_return(result)
 
-        logger = PassgenUtilsMockLogger.new
+        logger = TestUtils::MockLogger.new
         expect( Simp::Cli::Passgen::Utils.apply_manifest(manifest, {}, logger) )
           .to eq(result)
 
         expected = "Creating manifest file for puppet apply with content:\n#{manifest}"
-        expect( logger.messages[0] ).to eq(expected)
+        expect( logger.messages[:debug][0][0] ).to eq(expected)
 
         expected_regex = /Executing: #{Regexp.escape(cmd_prefix)} .*passgen.pp/
-        expect( logger.messages[1] ).to match(expected_regex)
+        expect( logger.messages[:debug][1][0] ).to match(expected_regex)
 
         expected = ">>> stdout:\n#{result[:stdout]}"
-        expect( logger.messages[2] ).to eq(expected)
+        expect( logger.messages[:debug][2][0] ).to eq(expected)
 
         expected = ">>> stderr:\n#{result[:stderr]}"
-        expect( logger.messages[3] ).to eq(expected)
+        expect( logger.messages[:debug][3][0] ).to eq(expected)
       end
 
       it 'uses opts :env and :title when specified' do
@@ -298,7 +288,7 @@ EOM
           .with(cmd_regex).and_return(result)
 
         opts = { :env => 'dev', :title => 'password remove', :fail => true }
-        logger = PassgenUtilsMockLogger.new
+        logger = TestUtils::MockLogger.new
         first = "password remove failed:\n>>> Command:"
         last = "\n>>> Manifest:\n#{Regexp.escape(manifest)}\n>>> stderr:\n#{result[:stderr]}"
         expected_regex = /#{first} #{Regexp.escape(cmd_prefix_dev)} .*passgen.pp'#{last}/m
@@ -306,16 +296,16 @@ EOM
           .to raise_error(Simp::Cli::ProcessingError, expected_regex)
 
         expected = "Creating manifest file for password remove with content:\n#{manifest}"
-        expect( logger.messages[0] ).to eq(expected)
+        expect( logger.messages[:debug][0][0] ).to eq(expected)
 
         expected_regex = /Executing: #{Regexp.escape(cmd_prefix_dev)} .*passgen.pp/
-        expect( logger.messages[1] ).to match(expected_regex)
+        expect( logger.messages[:debug][1][0] ).to match(expected_regex)
 
         expected = ">>> stdout:\n#{result[:stdout]}"
-        expect( logger.messages[2] ).to eq(expected)
+        expect( logger.messages[:debug][2][0] ).to eq(expected)
 
         expected = ">>> stderr:\n#{result[:stderr]}"
-        expect( logger.messages[3] ).to eq(expected)
+        expect( logger.messages[:debug][3][0] ).to eq(expected)
       end
     end
   end
@@ -348,38 +338,38 @@ EOM
     context 'with logger' do
       it 'returns Hash for valid YAML file' do
         file = File.join(files_dir, 'good.yaml')
-        logger = PassgenUtilsMockLogger.new
+        logger = TestUtils::MockLogger.new
         yaml =  Simp::Cli::Passgen::Utils.load_yaml(file, 'password info', logger)
 
         expected = { 'value' => { 'password' => 'password1', 'salt' => 'salt1' } }
         expect( yaml ).to eq(expected)
         expected_debug = [
-          'Loading password info YAML from file',
-          "Content:\n#{File.read(file)}"
+          [ 'Loading password info YAML from file' ],
+          [ "Content:\n#{File.read(file)}" ]
         ]
-        expect( logger.messages ).to eq(expected_debug)
+        expect( logger.messages[:debug] ).to eq(expected_debug)
       end
 
       it 'fails when the file does not exist' do
-        logger = PassgenUtilsMockLogger.new
+        logger = TestUtils::MockLogger.new
         expect{ Simp::Cli::Passgen::Utils.load_yaml('oops', 'password list', logger) }
         .to raise_error(Simp::Cli::ProcessingError,
          /Failed to load password list YAML:\n<<< Error: No such file or directory/m)
-        expected_debug = ['Loading password list YAML from file']
-        expect( logger.messages ).to eq(expected_debug)
+        expected_debug = [ [ 'Loading password list YAML from file' ] ]
+        expect( logger.messages[:debug] ).to eq(expected_debug)
       end
 
       it 'fails when YAML file cannot be parsed' do
         file = File.join(files_dir, 'bad.yaml')
-        logger = PassgenUtilsMockLogger.new
+        logger = TestUtils::MockLogger.new
         expected_regex = /Failed to load password info YAML:\n<<< YAML Content:\n#{File.read(file)}\n<<< Error: /m
         expect{ Simp::Cli::Passgen::Utils.load_yaml(file, 'password info', logger) }
         .to raise_error(Simp::Cli::ProcessingError, expected_regex)
         expected_debug = [
-          'Loading password info YAML from file',
-          "Content:\n#{File.read(file)}"
+          [ 'Loading password info YAML from file' ],
+          [ "Content:\n#{File.read(file)}" ]
         ]
-        expect( logger.messages ).to eq(expected_debug)
+        expect( logger.messages[:debug] ).to eq(expected_debug)
       end
     end
   end

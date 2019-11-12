@@ -338,7 +338,10 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.on('--[no-]validate',
             'Enabled validation of new passwords with',
             'libpwscore/cracklib. **Only** appropriate',
-            'for user passwords. Defaults to ' +
+            'for user passwords and does not apply to',
+            'passwords generated via simp-simplib',
+            'functions (environments with simplib >=',
+            "#{LIBKV_SIMPLIB_VERSION}). Defaults to " +
             "#{translate_bool(DEFAULT_VALIDATE)}.") do |validate|
         @password_gen_options[:validate] = validate
       end
