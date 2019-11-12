@@ -56,64 +56,114 @@ describe Simp::Cli::Passgen::PasswordManager do
     end
   end
 
-#FIXME
   describe '#name_list' do
-    it 'returns empty array when no names exist' do
+    let(:password_list) { {
+      'keys' => {
+        'name1' => {
+          'value'    => { 'password' => 'password1', 'salt' => 'salt1'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => [
+              ['password1_old', 'salt1_old'],
+              ['password1_old_old', 'salt1_old_old']
+            ]
+          }
+        },
+        'name2' => {
+          'value' => { 'password' => 'password2', 'salt' => 'salt2'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => []
+          }
+        }
+      }
+    } }
+
+    it 'returns empty array when no names exist for top folder of the specified env' do
+      allow(@manager).to receive(:password_list).and_return({})
+      expect(@manager.name_list).to eq([])
+    end
+
+    it 'returns empty array when no names exist for the <env, folder, backend>' do
+      allow(@manager_custom).to receive(:password_list).and_return({})
+      expect(@manager_custom.name_list).to eq([])
     end
 
     it 'returns list of available names for the top folder of the specified env' do
-      
-      #expect( @manager.name_list ).to eq(expected)
+      allow(@manager).to receive(:password_list).and_return(password_list)
+      expect(@manager.name_list).to eq(['name1', 'name2'])
     end
 
     it 'returns list of available names for the <env, folder, backend>' do
+      allow(@manager_custom).to receive(:password_list).and_return(password_list)
+      expect(@manager_custom.name_list).to eq(['name1', 'name2'])
     end
 
-    it 'fails when puppet apply with list operation fails' do
-=begin
+    it 'fails when #password_list fails' do
+      allow(@manager).to receive(:password_list).and_raise(
+        Simp::Cli::ProcessingError, 'Password list retrieve failed')
+
       expect { @manager.name_list }.to raise_error(
-        Simp::Cli::ProcessingError,
-        'List failed: Permission denied - failed chdir')
-=end
+        Simp::Cli::ProcessingError, 'List failed: Password list retrieve failed')
     end
-
   end
 
-#FIXME
   describe '#password_info' do
+    let(:password_info) { {
+      'value'    => { 'password' => 'password1', 'salt' => 'salt1'},
+      'metadata' => {
+        'complex'      => 1,
+        'complex_only' => false,
+        'history'      => [
+          ['password1_old', 'salt1_old'],
+          ['password1_old_old', 'salt1_old_old']
+        ]
+      }
+    } }
 
     it 'returns hash with info for name in the top folder of the specified env' do
-=begin
-      expected = {
-        'value'    => {
-          'password' => 'production_name3_password',
-          'salt'     => 'salt for production_name3'
-        },
-          'metadata' => {
-          'history' => [
-            ['production_name3_backup_password', 'salt for production_name3 backup' ]
-          ]
-        }
-      }
+      allow(@manager).to receive(:current_password_info)
+        .with(@simple_name).and_return(password_info)
 
-      expect( @manager.password_info('production_name3') ).to eq(expected)
-=end
+      expect( @manager.password_info('name1') ).to eq(password_info)
     end
 
     it 'returns hash with info for name in <env, folder, backend> ' do
+      allow(@manager_custom).to receive(:current_password_info)
+        .with(@complex_name).and_return(password_info)
+
+      expect( @manager_custom.password_info('name1') ).to eq(password_info)
     end
 
     it 'fails when non-existent name specified' do
-=begin
+      allow(@manager).to receive(:current_password_info)
+        .with('oops').and_return({})
+
       expect { @manager.password_info('oops') }.to raise_error(
         Simp::Cli::ProcessingError,
-        "'oops' password not present")
-=end
+        "Retrieve failed: 'oops' password not found")
     end
 
-    it 'fails when puppet apply with get operation fails' do
-=begin
-=end
+    it 'fails when retrieved info fails validation' do
+      bad_info = { 'keys' => {} }
+      allow(@manager).to receive(:current_password_info)
+        .with(@simple_name).and_return(bad_info)
+
+      expect { @manager.password_info(@simple_name) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Retrieve failed: Invalid result returned from simplib::passgen::get:\n\n#{bad_info}")
+    end
+
+    it 'fails when #current_password_info fails' do
+      allow(@manager).to receive(:current_password_info)
+        .with(@simple_name).and_raise(
+        Simp::Cli::ProcessingError, 'Password retrieve failed')
+
+      expect { @manager.password_info(@simple_name) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Retrieve failed: Password retrieve failed')
     end
 
   end
@@ -588,6 +638,16 @@ describe Simp::Cli::Passgen::PasswordManager do
         .and_return(password_list)
 
       expect( @manager.password_list ).to eq(password_list)
+    end
+
+    it 'applies manifest with folder and backend to retrieve password list and then returns it' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+        .and_return(password_list)
+
+      expect( @manager_custom.password_list ).to eq(password_list)
     end
 
     it 'fails when manifest apply fails' do
