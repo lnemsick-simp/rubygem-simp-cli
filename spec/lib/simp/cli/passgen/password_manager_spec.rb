@@ -313,6 +313,7 @@ describe Simp::Cli::Passgen::PasswordManager do
 #FIXME
   describe '#merge_password_options' do
 
+    let(:fullname) { 'name1' }
     let(:options) do
       {
         :default_length       => 32,
@@ -322,10 +323,7 @@ describe Simp::Cli::Passgen::PasswordManager do
       }
     end
 
-
     context ':length option' do
-      let(:fullname) { 'name1' }
-
       context 'input :length option unset' do
         it 'returns options with :length=:default_length when password does not exist' do
           allow(@manager).to receive(:current_password_info).with(fullname)
@@ -384,31 +382,58 @@ describe Simp::Cli::Passgen::PasswordManager do
       end
     end
 
-=begin
     context ':complexity option' do
       context 'input :complexity option unset' do
-        it 'returns options with :complexity=:default_complexity when ' do
-          new_options = options.dup
-          new_options[:length] = 64
-          merged_options = @manager.merge_password_options(@password_file, new_options)
-          expect( merged_options[:complexity] ).to eq(new_options[:default_complexity])
+        it 'returns options with :complexity=:default_complexity when password does not exist' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return({})
+
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complexity] ).to eq(options[:default_complexity])
+        end
+
+        it 'returns options with :complexity=:default_complexity when password exists but does not have complexity stored' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return({ 'value' => { 'password' => '1234568'} })
+
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complexity] ).to eq(options[:default_complexity])
+        end
+
+        it 'returns options with :complexity=existing password complexity' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return(
+            { 'value' => { 'password' => '1234568'},
+              'metadata' => { 'complexity' => 2 }
+            })
+
+          merged_options = @manager.merge_password_options(fullname, options)
+          expect( merged_options[:complexity] ).to eq(2)
         end
       end
 
       context 'input :complexity option set' do
         it 'returns options with input :complexity when it exists' do
+          allow(@manager).to receive(:current_password_info).with(fullname)
+            .and_return(
+            { 'value' => { 'password' => '1234568'},
+              'metadata' => { 'complexity' => 2 }
+            })
+
           new_options = options.dup
-          new_options[:length] = 64
-          new_options[:complexity] = 2
-          merged_options = @manager.merge_password_options(@password_file, new_options)
+          new_options[:complexity] = 1
+          merged_options = @manager.merge_password_options(fullname, new_options)
           expect( merged_options[:complexity] ).to eq(new_options[:complexity])
         end
       end
-
     end
 
+=begin
     context ':complex_only option' do
       context 'input :complex_only option unset' do
+      end
+
+      context 'input :complex_only option set' do
       end
 
       it 'returns options with input :complex_only when it exists' do
