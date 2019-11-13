@@ -183,8 +183,8 @@ Warning: Missing dependency 'puppetlabs-apt':
       # mock the password manager with a double of String in which methods needed have
       # been defined
       mock_manager = object_double('Mock Password Manager', {
-        :remove_password  => nil,
-        :location         => "'production' Environment"
+        :remove_password => nil,
+        :location        => "'production' Environment"
       })
 
       expected_output = <<-EOM
@@ -205,8 +205,8 @@ Processing 'name4' in 'production' Environment
     it 'does not remove password names when force_remove=false and prompt returns no' do
       allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(false)
       mock_manager = object_double('Mock Password Manager', {
-        :remove_password  => nil,
-        :location         => "'production' Environment"
+        :remove_password => nil,
+        :location        => "'production' Environment"
       })
       expected_output = <<-EOM
 Processing 'name1' in 'production' Environment
@@ -225,8 +225,8 @@ Processing 'name4' in 'production' Environment
 
     it 'removes password names when force_remove=true' do
       mock_manager = object_double('Mock Password Manager', {
-        :remove_password  => nil,
-        :location         => "'production' Environment"
+        :remove_password => nil,
+        :location        => "'production' Environment"
       })
 
       expected_output = <<-EOM
@@ -246,8 +246,8 @@ Processing 'name4' in 'production' Environment
 
     it 'removes as many passwords as possible and fails with list of password remove failures' do
       mock_manager = object_double('Mock Password Manager', {
-        :remove_password  => nil,
-        :location         => "'production' Environment"
+        :remove_password => nil,
+        :location        => "'production' Environment"
       })
 
       allow(mock_manager).to receive(:remove_password).with('name1').and_return(nil)
@@ -289,8 +289,8 @@ Failed to remove the following passwords in 'production' Environment:
 
     it 'sets passwords' do
       mock_manager = object_double('Mock Password Manager', {
-        :set_password  => nil,
-        :location      => "'production' Environment"
+        :set_password => nil,
+        :location     => "'production' Environment"
       })
 
       names.each do |name|
@@ -315,8 +315,8 @@ Processing 'name4' in 'production' Environment
 
     it 'sets as many passwords as possible and fails with list of password set failures' do
       mock_manager = object_double('Mock Password Manager', {
-        :set_password  => 'new_password',
-        :location      => "'production' Environment"
+        :set_password => 'new_password',
+        :location     => "'production' Environment"
       })
       allow(mock_manager).to receive(:set_password).
         with('name1', password_gen_options).and_return('name1_new_password')
@@ -441,8 +441,8 @@ test
   describe '#show_name_list' do
     it 'reports no password names when list is empty' do
       mock_manager = object_double('Mock Password Manager', {
-        :name_list  => [],
-        :location   => "'production' Environment"
+        :name_list => [],
+        :location  => "'production' Environment"
       })
 
       expected_output = "No passwords found in 'production' Environment\n\n"
@@ -452,8 +452,8 @@ test
 
     it 'lists available password names' do
       mock_manager = object_double('Mock Password Manager', {
-        :name_list  => [ 'name1', 'name2', 'name3'],
-        :location   => "'production' Environment"
+        :name_list => [ 'name1', 'name2', 'name3'],
+        :location  => "'production' Environment"
       })
 
       expected_output = <<-EOM
@@ -471,8 +471,8 @@ name3
 
     it 'fails when password list operation fails' do
       mock_manager = object_double('Mock Password Manager', {
-        :name_list  => nil,
-        :location   => "'production' Environment"
+        :name_list => nil,
+        :location  => "'production' Environment"
       })
 
       allow(mock_manager).to receive(:name_list).and_raise(
@@ -683,8 +683,8 @@ production
 
         it 'lists available names for default environment' do
           mock_manager = object_double('Mock LegacyPasswordManager', {
-            :name_list  => [ 'name1', 'name2' ],
-            :location   => "'production' Environment"
+            :name_list => [ 'name1', 'name2' ],
+            :location  => "'production' Environment"
           })
 
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
@@ -704,8 +704,8 @@ name2
 
         it 'lists available names for specified environment' do
           mock_manager = object_double('Mock LegacyPasswordManager', {
-            :name_list  => [ 'name1' ],
-            :location   => "'dev' Environment"
+            :name_list => [ 'name1' ],
+            :location  => "'dev' Environment"
           })
 
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
@@ -723,8 +723,8 @@ name1
 
         it 'lists available names for specified directory' do
           mock_manager = object_double('Mock LegacyPasswordManager', {
-            :name_list  => [ 'name1' ],
-            :location   => '/some/passgen/path'
+            :name_list => [ 'name1' ],
+            :location  => '/some/passgen/path'
           })
 
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
@@ -755,8 +755,8 @@ name1
 
         it 'lists available names for the top folder of the default env' do
           mock_manager = object_double('Mock PasswordManager', {
-            :name_list  => [ 'name1', 'name2' ],
-            :location   => "'production' Environment"
+            :name_list => [ 'name1', 'name2' ],
+            :location  => "'production' Environment"
           })
 
           allow(Simp::Cli::Passgen::PasswordManager).to receive(:new)
@@ -776,8 +776,8 @@ name2
 
         it 'lists available names for the specified <env,folder,backend>' do
           mock_manager = object_double('Mock PasswordManager', {
-            :name_list  => [ 'name1' ],
-            :location   => "'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend"
+            :name_list => [ 'name1' ],
+            :location  => "'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend"
           })
 
           allow(Simp::Cli::Passgen::PasswordManager).to receive(:new)
@@ -981,10 +981,13 @@ Name: name1
           allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
           mock_manager = object_double('Mock LegacyPasswordManager', {
             :remove_password => nil,
-            :location      => "'production' Environment"
+            :location        => "'production' Environment"
           })
 
-          allow(mock_manager).to receive(:remove_password).with('name1', 'name2')
+          allow(mock_manager).to receive(:remove_password).with('name1')
+            .and_return(nil)
+
+          allow(mock_manager).to receive(:remove_password).with('name2')
             .and_return(nil)
 
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
@@ -1004,7 +1007,7 @@ Processing 'name2' in 'production' Environment
         it 'removes names for default environment without prompting when --force-remove' do
           mock_manager = object_double('Mock LegacyPasswordManager', {
             :remove_password => nil,
-            :location      => "'production' Environment"
+            :location        => "'production' Environment"
           })
 
           allow(mock_manager).to receive(:remove_password).with('name1')
@@ -1027,7 +1030,7 @@ Processing 'name1' in 'production' Environment
 
           mock_manager = object_double('Mock LegacyPasswordManager', {
             :remove_password => nil,
-            :location      => "'dev' Environment"
+            :location        => "'dev' Environment"
           })
 
           allow(mock_manager).to receive(:remove_password).with('name1')
@@ -1061,10 +1064,13 @@ Processing 'name1' in 'dev' Environment
           allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
           mock_manager = object_double('Mock PasswordManager', {
             :remove_password => nil,
-            :location      => "'production' Environment"
+            :location        => "'production' Environment"
           })
 
-          allow(mock_manager).to receive(:remove_password).with('name1', 'name2')
+          allow(mock_manager).to receive(:remove_password).with('name1')
+            .and_return(nil)
+
+          allow(mock_manager).to receive(:remove_password).with('name2')
             .and_return(nil)
 
           allow(Simp::Cli::Passgen::PasswordManager).to receive(:new)
@@ -1084,7 +1090,7 @@ Processing 'name2' in 'production' Environment
         it 'removes names for default env without prompting when --force-remove' do
           mock_manager = object_double('Mock PasswordManager', {
             :remove_password => nil,
-            :location      => "'production' Environment"
+            :location        => "'production' Environment"
           })
 
           allow(mock_manager).to receive(:remove_password).with('name1')
@@ -1106,7 +1112,7 @@ Processing 'name1' in 'production' Environment
           allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
           mock_manager = object_double('Mock PasswordManager', {
             :remove_password => nil,
-            :location      => "'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend"
+            :location        => "'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend"
           })
 
           allow(mock_manager).to receive(:remove_password).with('name1')
@@ -1132,13 +1138,46 @@ Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Back
     # instantiated and used with appropriate options from the command line
     # in Simp::Cli::Commands::Passgen#set_passwords.
     describe '--set option' do
-=begin
+      let(:default_options) {
+        {
+          :auto_gen             => false,
+          :validate             => false,
+          :length               => nil,
+          :default_length       => 32,
+          :minimum_length       => 8,
+          :complexity           => nil,
+          :default_complexity   => 0,
+          :complex_only         => nil,
+          :default_complex_only => false
+         }
+      }
+
+      let(:custom_args) { [
+        '-e', 'dev',
+        '--auto-gen',
+        '--validate',
+        '--length', '48',
+        '--complexity', '2',
+        '--complex_only'
+      ] }
+
+      let(:custom_options) {
+        options = default_options.dup
+
+        # :auto_gen and :validate enabled via command line options
+        options[:auto_gen]     = true
+        options[:validate]     = true
+
+        # nil options set via command line options
+        options[:length]       = 48
+        options[:complexity]   = 2
+        options[:complex_only] = true
+
+        options
+      }
+
       context 'legacy manager' do
         before :each do
-          @password_env_dir = File.join(@var_dir, 'simp', 'environments')
-          @prod_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
-          @dev_password_dir = File.join(@password_env_dir, 'dev', 'simp_autofiles', 'gen_passwd')
-
           allow(Simp::Cli::ExecUtils).to receive(:run_command)
             .with(@module_list_command_prod, false, @passgen.logger)
             .and_return(@old_simplib_module_list_results)
@@ -1146,54 +1185,56 @@ Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Back
           allow(Simp::Cli::ExecUtils).to receive(:run_command)
             .with(@module_list_command_dev, false, @passgen.logger)
             .and_return(@old_simplib_module_list_results)
-
-          names = ['production_name', '10.0.1.2', 'salt.and.pepper', 'my.last.name']
-          create_password_files(@prod_password_dir, names)
-          create_password_files(@dev_password_dir, ['dev_name1'])
         end
 
-        context 'new name' do
-          it 'sets user-provided passwords for names for default env' do
-          end
+        it 'sets passwords for names in default env using default options' do
+          mock_manager = object_double('Mock LegacyPasswordManager', {
+            :set_password => nil,
+            :location     => "'production' Environment"
+          })
 
-          it 'sets user-provided passwords for names for specified env' do
-          end
+          allow(mock_manager).to receive(:set_password)
+            .with('name1', default_options).and_return('name1_new_password')
 
-          it 'sets valid user-provided passwords for names for default env when --validate' do
-          end
+          allow(mock_manager).to receive(:set_password)
+            .with('name2', default_options).and_return('name2_new_password')
 
-          it 'fails when invalid user-provided passwords for names for default env when --validate' do
-          end
+          allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
+            .with('production', nil).and_return(mock_manager)
 
-          it 'auto-gens passwords with default length, complexity, complex_only for names for default env' do
-          end
+          expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  'name1' new password: name1_new_password
+Processing 'name2' in 'production' Environment
+  'name2' new password: name2_new_password
+          EOM
 
-          it 'auto-gens with validation passwords for names for default dev when --validate' do
-          end
-
-          it 'auto-gens passwords with specified length, complexity, complex_only for names for default dev' do
-          end
+          @passgen.run(['-s', 'name1,name2'])
+          expect( @output.string ).to eq(expected_output)
         end
 
-        context 'existing name' do
-          it 'backs up and updates passwords using user-provided passwords for names for default env' do
-          end
+        it 'sets passwords for names in specified env using custom options' do
+          mock_manager = object_double('Mock LegacyPasswordManager', {
+            :set_password => nil,
+            :location     => "'dev' Environment"
+          })
 
-          it 'backs up and updates passwords using user-provided passwords for names for specified env' do
-          end
+          allow(mock_manager).to receive(:set_password)
+            .with('name1', custom_options).and_return('name1_new_password')
 
-          # complexity and complex_only are not persisted in legacy mode...
-          it 'backs up and updates using auto-gens passwords with existing length and default complexity + complex_only for names for default dev' do
-          end
+          allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
+            .with('dev', nil).and_return(mock_manager)
 
-          it 'backs up and updates using auto-gens passwords with specified length, complexity, complex_only for names for default dev' do
-          end
+          expected_output = <<-EOM
+Processing 'name1' in 'dev' Environment
+  'name1' new password: name1_new_password
+          EOM
+
+          @passgen.run(['-s', 'name1'] + custom_args)
+          expect( @output.string ).to eq(expected_output)
         end
       end
-=end
 
-#FIXME
-=begin
       context 'current manager' do
         before :each do
           allow(Simp::Cli::ExecUtils).to receive(:run_command)
@@ -1204,512 +1245,56 @@ Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Back
             .with(@module_list_command_dev, false, @passgen.logger)
             .and_return(@new_simplib_module_list_results)
         end
-      end
-          # FIXME complexity and complex_only are not persisted in legacy mode...
-          it 'back ups and updates using auto-gens passwords with previous length, complexity, complex_only for names for default env' do
-          end
-=end
-    end
 
-=begin
+        it 'sets passwords for names in default env using default options' do
+          mock_manager = object_double('Mock PasswordManager', {
+            :set_password => nil,
+            :location     => "'production' Environment"
+          })
 
+          allow(mock_manager).to receive(:set_password)
+            .with('name1', default_options).and_return('name1_new_password')
 
-describe Simp::Cli::Passgen::LegacyPasswordManager do
-  describe '#set_passwords' do
-    before :each do
-      FileUtils.mkdir_p(@password_dir)
-      names_with_backup = ['production_name1', 'production_name3']
-      names_without_backup = ['production_name2']
-      create_password_files(@password_dir, names_with_backup, names_without_backup)
+          allow(mock_manager).to receive(:set_password)
+            .with('name2', default_options).and_return('name2_new_password')
 
-      @name1_file = File.join(@password_dir, 'production_name1')
-      @name1_salt_file = File.join(@password_dir, 'production_name1.salt')
-      @name1_backup_file = File.join(@password_dir, 'production_name1.last')
-      @name1_backup_salt_file = File.join(@password_dir, 'production_name1.salt.last')
+          allow(Simp::Cli::Passgen::PasswordManager).to receive(:new)
+            .with('production', nil, nil).and_return(mock_manager)
 
-      @name2_file = File.join(@password_dir, 'production_name2')
-      @name2_salt_file = File.join(@password_dir, 'production_name2.salt')
-      @name2_backup_file = File.join(@password_dir, 'production_name2.last')
-      @name2_backup_salt_file = File.join(@password_dir, 'production_name2.salt.last')
+          expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  'name1' new password: name1_new_password
+Processing 'name2' in 'production' Environment
+  'name2' new password: name2_new_password
+          EOM
 
-      @name3_file = File.join(@password_dir, 'production_name3')
-      @name3_salt_file = File.join(@password_dir, 'production_name3.salt')
-      @name3_backup_file = File.join(@password_dir, 'production_name3.last')
-      @name3_backup_salt_file = File.join(@password_dir, 'production_name3.salt.last')
-    end
-
-    let(:options) do
-      {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
-      }
-    end
-
-    let(:expected_file_info) do
-      {
-        # new password, no salt, and full backup
-        @name1_file             => 'first_new_password',
-        @name1_salt_file        => nil,
-        @name1_backup_file      => 'production_name1_password',
-        @name1_backup_salt_file => 'salt for production_name1',
-
-        # new password, no salt, and full backup
-        @name2_file             => 'second_new_password',
-        @name2_salt_file        => nil,
-        @name2_backup_file      => 'production_name2_password',
-        @name2_backup_salt_file => 'salt for production_name2',
-
-        # unchanged
-        @name3_file             => 'production_name3_password',
-        @name3_salt_file        => 'salt for production_name3',
-        @name3_backup_file      => 'production_name3_backup_password',
-        @name3_backup_salt_file => 'salt for production_name3 backup password'
-      }
-    end
-
-    it 'updates password file and backs up old files in the specified environment' do
-      # bypass password input
-      allow(@manager).to receive(:get_new_password).and_return(
-        ['first_new_password', false], ['second_new_password', false])
-
-      # NOTE:  FileUtils.mv with :verbose sends output to something other than stdout
-      expected_output = <<-EOM
-Processing Name 'production_name1' in production Environment
-  Password set
-
-Processing Name 'production_name2' in production Environment
-  Password set
-
-      EOM
-
-      validate_set_and_backup(@manager,
-        [ ['production_name1', 'production_name2'], options ],
-        expected_output, expected_file_info)
-    end
-
-    it 'updates password file and backs up old files in the specified password dir' do
-      FileUtils.mkdir_p(@alt_password_dir)
-      create_password_files(@alt_password_dir, ['env1_name4'])
-
-      name4_file = File.join(@alt_password_dir, 'env1_name4')
-      name4_salt_file = File.join(@alt_password_dir, 'env1_name4.salt')
-      name4_backup_file = File.join(@alt_password_dir, 'env1_name4.last')
-      name4_backup_salt_file = File.join(@alt_password_dir, 'env1_name4.salt.last')
-
-      manager = Simp::Cli::Passgen::LegacyPasswordManager.new(@env, @alt_password_dir)
-      allow(manager).to receive(:get_new_password).and_return(['new_password',false])
-
-      # NOTE:  FileUtils.mv with :verbose sends output to something other than stdout
-      expected_output = <<-EOM
-Processing Name 'env1_name4' in #{@alt_password_dir}
-  Password set
-
-      EOM
-
-      expected_file_info = {spec/lib/simp/cli/commands/passgen_spec.rb
-        # new password, no salt, and full backup
-        name4_file             => 'new_password',
-        name4_salt_file        => nil,
-        name4_backup_file      => 'env1_name4_password',
-        name4_backup_salt_file => 'salt for env1_name4'
-      }
-
-      validate_set_and_backup(manager, [ ['env1_name4'], options ],
-        expected_output, expected_file_info)
-    end
-
-    it 'creates and sets password when auto_gen=true' do
-      new_options = options.dup
-      new_options[:auto_gen] = true
-      expected_regex = /Processing Name 'production_name1' in production Environment\n  Password set to '.*'/m
-      expect { @manager.set_passwords(['production_name1'], new_options) }.to \
-        output(expected_regex).to_stdout
-    end
-
-    it 'creates password file for new name' do
-      allow(@manager).to receive(:get_new_password).and_return(['new_password',false])
-
-      expected_output = <<-EOM
-Processing Name 'new_name' in production Environment
-  Password set
-
-      EOM
-      expect { @manager.set_passwords(['new_name'], options) }.to \
-        output(expected_output).to_stdout
-      new_password_file = File.join(@password_dir, 'new_name')
-      expect( File.exist?(new_password_file) ).to eq true
-      expect( File.exist?(new_password_file + '.salt') ).to eq false
-      expect( File.exist?(new_password_file + '.last') ).to eq false
-      expect( IO.read(new_password_file).chomp ).to eq 'new_password'
-    end
-
-    it 'allows multiple backups' do
-      allow(@manager).to receive(:get_new_password).and_return(['new_password',false])
-      expect { @manager.set_passwords(['name1'], options) }.not_to raise_error
-      expect { @manager.set_passwords(['name1'], options) }.not_to raise_error
-    end
-
-  end
-
-
-  # Helpers.  Since most helper methods are fully tested in Operations tests,
-  # only use cases not otherwise tested are exercised here.
-
-  describe '#get_new_password' do
-    before :each do
-      @input = StringIO.new
-      @output = StringIO.new
-      @prev_terminal = $terminal
-      $terminal = HighLine.new(@input, @output)
-    end
-
-    after :each do
-      @input.close
-      @output.close
-      $terminal = @prev_terminal
-    end
-
-    let(:good_password) { 'A=V3ry=Go0d=P@ssw0r!' }
-    let(:bad_password) { 'password' }
-    let(:short_password) { 'short' }
-
-    let(:options) do
-      {
-        :auto_gen       => false,
-        :force_value    => false,
-        :default_length => 32,
-        :minimum_length => 8,
-        # If you set this too short on a SIMP-managed dev system,
-        # password generation will be in a constant retry loop!
-        :length         => 24
-      }
-    end
-
-
-    it 'gathers and returns insufficient complexity user password when auto_gen=false and force_value=true' do
-      new_options = options.dup
-      new_options[:force_value] = true
-      @input << "#{bad_password}\n"
-      @input << "#{bad_password}\n"
-      @input.rewind
-      expect( @manager.get_new_password(new_options)).to eq([bad_password, false])
-    end
-
-    it 'gathers and returns too short user password when auto_gen=false and force_value=true' do
-      new_options = options.dup
-      new_options[:force_value] = true
-      @input << "#{short_password}\n"
-      @input << "#{short_password}\n"
-      @input.rewind
-      expect( @manager.get_new_password(new_options)).to eq([short_password, false])
-    end
-  end
-
-  describe '#get_password_length' do
-    before(:each) do
-      FileUtils.mkdir_p(@password_dir)
-      @name = 'name'
-      @password_file = File.join(@password_dir, @name)
-    end
-
-    let(:options) do
-      {
-        :default_length => 32,
-        :minimum_length => 8
-      }
-    end
-
-
-    it 'returns default length when password file does not exist and length option unset' do
-      expect( @manager.get_password_length(@password_file, options) ).to eq(options[:default_length])
-    end
-
-    it 'returns length matching existing password length when it is valid and length option unset' do
-      File.open(@password_file, 'w') { |file| file.puts '12345678' }
-      expect( @manager.get_password_length(@password_file, options) ).to eq(8)
-    end
-
-    it 'returns default length when existing password length is too short and length option unset' do
-      File.open(@password_file, 'w') { |file| file.puts '1234567' }
-      expect( @manager.get_password_length(@password_file, options) ).to eq(options[:default_length])
-    end
-
-    it 'returns options length it is valid' do
-      File.open(@password_file, 'w') { |file| file.puts "name_password" }
-      new_options = options.dup
-      new_options[:length] = 48
-      expect( @manager.get_password_length(@password_file, new_options) ).to eq(48)
-    end
-
-    it 'returns default length when options length length is too short' do
-      File.open(@password_file, 'w') { |file| file.puts "name_password" }
-      new_options = options.dup
-      new_options[:length] = 6
-      expect( @manager.get_password_length(@password_file, new_options) ).to eq(new_options[:default_length])
-    end
-  end
-end
-=end
-=begin
-
-    describe '--set option' do
-      before :each do
-        @default_password_dir = File.join(@password_env_dir, 'production', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@default_password_dir)
-
-        @name1_file = File.join(@default_password_dir, 'production_name1')
-        File.open(@name1_file, 'w') { |file| file.puts "production_name1_password" }
-        @name1_salt_file = File.join(@default_password_dir, 'production_name1.salt')
-        File.open(@name1_salt_file, 'w') { |file| file.puts 'production_name1_salt' }
-        @name1_backup_file = File.join(@default_password_dir, 'production_name1.last')
-        File.open(@name1_backup_file, 'w') { |file| file.puts "production_name1_backup_password" }
-
-        @name2_file = File.join(@default_password_dir, 'production_name2')
-        File.open(@name2_file, 'w') { |file| file.puts "production_name2_password" }
-
-        @name3_file = File.join(@default_password_dir, 'production_name3')
-        File.open(@name3_file, 'w') { |file| file.puts "production_name3_password" }
-        @name3_backup_file = File.join(@default_password_dir, 'production_name3.last')
-        File.open(@name3_backup_file, 'w') { |file| file.puts "production_name3_backup_password" }
-
-        @env1_password_dir = File.join(@password_env_dir, 'env1', 'simp_autofiles', 'gen_passwd')
-        FileUtils.mkdir_p(@env1_password_dir)
-        @name4_file = File.join(@env1_password_dir, 'env1_name4')
-        File.open(@name4_file, 'w') { |file| file.puts "env1_name4_password" }
-        @name4_salt_file = File.join(@env1_password_dir, 'env1_name4.salt')
-        File.open(@name4_salt_file, 'w') { |file| file.puts "env1_name4_salt" }
-        @name4_backup_file = File.join(@env1_password_dir, 'env1_name4.last')
-        File.open(@name4_backup_file, 'w') { |file| file.puts "env1_name4_backup_password" }
-      end
-
-      context 'with default environment' do
-        context 'with backups' do
-          let(:expected_file_info) do {
-              @name1_file                => 'first_new_password',
-              @name1_backup_file         => 'production_name1_password',
-              @name1_salt_file + '.last' => 'production_name1_salt',
-              @name2_file                => 'second_new_password',
-              @name2_file + '.last'      => 'production_name2_password',
-              @name3_file                => 'production_name3_password',       # unchanged
-              @name3_backup_file         => 'production_name3_backup_password' # unchanged
-            }
-          end
-
-          it 'updates password file and backs up old files per prompt' do
-            allow(@passgen).to receive(:get_password).and_return(
-              'first_new_password', 'second_new_password')
-            allow(@passgen).to receive(:yes_or_no).and_return(true)
-            expected_output = <<EOM
-production Name: production_name1
-
-production Name: production_name2
-
-EOM
-            validate_set_and_backup(@passgen, ['-s', 'production_name1,production_name2' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name1_salt_file)).to be false
-          end
-
-          it 'updates password file and backs up old files per --backup option' do
-            allow(@passgen).to receive(:get_password).and_return(
-              'first_new_password', 'second_new_password')
-            expected_output = <<EOM
-production Name: production_name1
-
-production Name: production_name2
-
-EOM
-            validate_set_and_backup(@passgen, ['--backup', '-s', 'production_name1,production_name2' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name1_salt_file)).to be false
-          end
+          @passgen.run(['-s', 'name1,name2'])
+          expect( @output.string ).to eq(expected_output)
         end
 
-        context 'without backups' do
-          let(:expected_file_info) do {
-              @name1_file        => 'first_new_password',
-              @name1_backup_file => 'production_name1_backup_password', # unchanged
-              @name2_file        => 'second_new_password',
-              @name3_file        => 'production_name3_password',        # unchanged
-              @name3_backup_file => 'production_name3_backup_password'  # unchanged
-            }
-          end
+        it 'sets passwords for names in specified env using custom options' do
+          mock_manager = object_double('Mock PasswordManager', {
+            :set_password => nil,
+            :location     => "'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend"
+          })
 
-          it 'updates password file and does not back up old files per prompt' do
-            allow(@passgen).to receive(:get_password).and_return(
-              'first_new_password', 'second_new_password')
-            allow(@passgen).to receive(:yes_or_no).and_return(true)
-            allow(@passgen).to receive(:yes_or_no).and_return(false)
+          allow(mock_manager).to receive(:set_password)
+            .with('name1', custom_options).and_return('name1_new_password')
 
-            # not mocking query output
-            expected_output = <<EOM
-production Name: production_name1
+          allow(Simp::Cli::Passgen::PasswordManager).to receive(:new)
+            .with('dev', 'backend3', 'folder1').and_return(mock_manager)
 
-production Name: production_name2
+          expected_output = <<-EOM
+Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
+  'name1' new password: name1_new_password
+          EOM
 
-EOM
-            validate_set_and_backup(@passgen, ['-s', 'production_name1,production_name2' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name1_salt_file)).to be false
-            expect(File.exist?(@name1_salt_file + '.last')).to be false
-            expect(File.exist?(@name2_file + '.last')).to eq false
-          end
-
-          it 'updates password file and does not back up old files per --no-backup option' do
-            allow(@passgen).to receive(:get_password).and_return(
-              'first_new_password', 'second_new_password')
-            expected_output = <<EOM
-production Name: production_name1
-
-production Name: production_name2
-
-EOM
-            validate_set_and_backup(@passgen, ['--no-backup', '-s', 'production_name1,production_name2' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name1_salt_file)).to be false
-            expect(File.exist?(@name1_salt_file + '.last')).to be false
-            expect(File.exist?(@name2_file + '.last')).to eq false
-          end
+          @passgen.run(['-s', 'name1', '--folder', 'folder1',
+            '--backend', 'backend3'] + custom_args)
+          expect( @output.string ).to eq(expected_output)
         end
-
-        it 'creates password file for new name' do
-          allow(@passgen).to receive(:get_password).and_return('new_password')
-          expected_output = <<EOM
-production Name: new_name
-
-EOM
-          expect { @passgen.run(['--backup', '-s', 'new_name']) }.to output(
-            expected_output).to_stdout
-          new_password_file = File.join(@default_password_dir, 'new_name')
-          expect( File.exist?(new_password_file) ).to eq true
-          expect( File.exist?(new_password_file + '.salt') ).to eq false
-          expect( File.exist?(new_password_file + '.last') ).to eq false
-          expect( IO.read(new_password_file).chomp ).to eq 'new_password'
-        end
-
-        it 'allows multiple backups' do
-          allow(@passgen).to receive(:get_password).and_return('new_password')
-          @passgen.run(['--backup', '-s', 'production_name1'])
-          expect { @passgen.run(['--backup', '-s', 'production_name1']) }.not_to raise_error
-          expect { @passgen.run(['--backup', '-s', 'production_name1']) }.not_to raise_error
-       end
-      end
-
-      context 'specified environment' do
-        context 'with backups' do
-          let(:expected_file_info) do {
-              @name4_file                => 'new_password',
-              @name4_salt_file + '.last' => 'env1_name4_salt',
-              @name4_backup_file         => 'env1_name4_password'
-            }
-          end
-
-          it 'updates password file and backs up old files per prompt' do
-            allow(@passgen).to receive(:get_password).and_return('new_password')
-            allow(@passgen).to receive(:yes_or_no).and_return(true)
-            # not mocking query output
-            expected_output = <<EOM
-env1 Name: env1_name4
-
-EOM
-            validate_set_and_backup(@passgen, ['-e', 'env1', '-s', 'env1_name4'],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name4_salt_file)).to be false
-          end
-
-          it 'updates password file and backs up old files per --backup option' do
-            allow(@passgen).to receive(:get_password).and_return('new_password')
-            expected_output = <<EOM
-env1 Name: env1_name4
-
-EOM
-            validate_set_and_backup(@passgen, ['-e', 'env1', '--backup', '-s', 'env1_name4' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name4_salt_file)).to be false
-          end
-        end
-
-        context 'without backups' do
-          let(:expected_file_info) do {
-              @name4_file                => 'new_password',
-              @name4_backup_file         => 'env1_name4_backup_password' # unchanged
-            }
-          end
-
-          it 'updates password file and does not back up old files per prompt' do
-            allow(@passgen).to receive(:get_password).and_return('new_password')
-            allow(@passgen).to receive(:yes_or_no).and_return(false)
-            # not mocking query output
-            expected_output = <<EOM
-env1 Name: env1_name4
-
-EOM
-            validate_set_and_backup(@passgen, ['-e', 'env1', '-s', 'env1_name4' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name4_salt_file)).to eq false
-            expect(File.exist?(@name4_salt_file + '.last')).to eq false
-          end
-
-          it 'updates password file and does not back up old files per --no-backup option' do
-            allow(@passgen).to receive(:get_password).and_return('new_password')
-            expected_output = <<EOM
-env1 Name: env1_name4
-
-EOM
-            validate_set_and_backup(@passgen, ['-e', 'env1', '--no-backup', '-s', 'env1_name4' ],
-              expected_output, expected_file_info)
-
-            expect(File.exist?(@name4_salt_file)).to eq false
-            expect(File.exist?(@name4_salt_file + '.last')).to eq false
-          end
-        end
-
-        it 'creates password file for new name' do
-          allow(@passgen).to receive(:get_password).and_return('new_password')
-          expected_output = <<EOM
-env1 Name: new_name
-
-EOM
-          expect { @passgen.run(['-e', 'env1', '--backup', '-s', 'new_name']) }.to output(
-            expected_output).to_stdout
-          new_password_file = File.join(@env1_password_dir, 'new_name')
-          expect( File.exist?(new_password_file) ).to eq true
-          expect( File.stat(new_password_file).mode & 0777 ).to eq 0640
-          expect( File.exist?(new_password_file + '.last') ).to eq false
-          expect( IO.read(new_password_file).chomp ).to eq 'new_password'
-        end
-      end
-
-      it 'fails when no names specified' do
-        expect { @passgen.run(['-s']) }.to raise_error(OptionParser::MissingArgument)
-      end
-
-      it 'fails when password directory does not exist' do
-        FileUtils.rm_rf(@default_password_dir)
-        expect { @passgen.run(['-s', 'production_name1']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@default_password_dir}' does not exist")
-      end
-
-      it 'fails when password directory is not a directory' do
-        FileUtils.rm_rf(@default_password_dir)
-        FileUtils.touch(@default_password_dir)
-        expect { @passgen.run(['-s', 'production_name1']) }.to raise_error(
-          Simp::Cli::ProcessingError,
-          "Password directory '#{@default_password_dir}' is not a directory")
       end
     end
-
-=end
 
     describe 'option validation' do
       it 'requires operation option to be specified' do

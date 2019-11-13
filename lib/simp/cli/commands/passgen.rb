@@ -450,8 +450,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # Set console log level
   def  set_up_global_logger
    case @verbose
-    when -1
-      console_log_level = :error
     when 0
       console_log_level = :notice
     when 1
