@@ -971,7 +971,7 @@ Name: name2
           create_password_files(@dev_password_dir, ['dev_name1'])
         end
 
-        it 'removes names for default environment when prompt returns yes' do
+        it 'removes names for default env when prompt returns yes' do
           allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
           expected_output = <<-EOM
 Processing 'my.last.name' in 'production' Environment
@@ -1024,8 +1024,6 @@ Processing 'dev_name1' in 'dev' Environment
         end
       end
 
-#FIXME
-=begin
       context 'current manager' do
         before :each do
           allow(Simp::Cli::ExecUtils).to receive(:run_command)
@@ -1036,8 +1034,57 @@ Processing 'dev_name1' in 'dev' Environment
             .with(@module_list_command_dev, false, @passgen.logger)
             .and_return(@new_simplib_module_list_results)
         end
+
+        it 'removes names for default env when prompt returns yes' do
+          allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+
+          # mock each puppet apply with a remove manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  Removed 'name1'
+Processing 'name2' in 'production' Environment
+  Removed 'name2'
+          EOM
+
+          @passgen.run(['-r', 'name1,name2'])
+          expect( @output.string ).to eq(expected_output)
+        end
+
+        it 'removes names for default env without prompting when --force-remove' do
+          # mock each puppet apply with a remove manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          expected_output = <<-EOM
+Processing 'name1' in 'production' Environment
+  Removed 'name1'
+          EOM
+
+          @passgen.run(['-r', 'name1', '--force-remove'])
+          expect( @output.string ).to eq(expected_output)
+        end
+
+        it 'removes passwords for specified names in specified <env,folder,backend>' do
+          allow(Simp::Cli::Passgen::Utils).to receive(:yes_or_no).and_return(true)
+
+          # mock each puppet apply with a remove manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+expected_output = <<-EOM
+Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
+  Removed 'name1'
+          EOM
+
+          @passgen.run(['-r', 'name1', '-e', 'dev', '--folder', 'folder1',
+            '--backend', 'backend3'])
+
+          expect( @output.string ).to eq(expected_output)
+        end
       end
-=end
     end
 
     # This test verifies that the correct password manager object has been
