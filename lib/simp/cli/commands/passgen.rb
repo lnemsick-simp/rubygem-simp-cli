@@ -358,6 +358,12 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       opts.on('-v', '--verbose', 'Verbose console output (stacks).' ) do
         @verbose  += 1
       end
+
+      opts.on('-b', '--[no-]backup',
+            'DEPRECATED. This option is no longer',
+            'supported. Passwords are always backed up.') do |backup|
+        # do nothing
+      end
     end
 
 
