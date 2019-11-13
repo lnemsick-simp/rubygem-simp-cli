@@ -105,12 +105,12 @@ module Simp::Cli::Passgen::Utils
   #     location of password files.
   #   - vardir defaults to the puppet agent's setting (a different value)
   #     otherwise.
-  # * The apply is wrapped in 'sg  <puppet group>'  and run with a umask of
-  #   0007 to ensure any files/directories created by a simplib::passgen
-  #   function are still accessible by the puppetserver.  This group setting,
-  #   alone, is insufficient for legacy passgen files, but works when
-  #   used in conjunction with a legacy-passgen-specific 'user' setting
-  #   in manifests that create/update passwords.
+  # * The apply is wrapped in 'sg  <puppet group>' to ensure any files or
+  #   directories created by a simplib::passgen function are still accessible
+  #   by the puppetserver.  This group setting, alone, is insufficient for
+  #   legacy passgen files, but works when used in conjunction with a
+  #   legacy-passgen-specific 'user' setting in manifests that create/update
+  #   passwords.
   #
   # LIMITATION:  This 'puppet apply' operation has ONLY been tested for
   # manifests containing simplib::passgen functions and applied as the root
@@ -162,7 +162,7 @@ module Simp::Cli::Passgen::Utils
       # We need to defer handling of error logging to the caller, so don't pas
       # logger into run_command().  Since we are not using the logger in
       # run_command(), we will have to duplicate the command debug logging here.
-      cmd = "umask 0007 && sg #{puppet_info[:config]['group']} -c '#{puppet_apply}'"
+      cmd = "sg #{puppet_info[:config]['group']} -c '#{puppet_apply}'"
       logger.debug( "Executing: #{cmd}" ) if logger
       result = Simp::Cli::ExecUtils.run_command(cmd)
     end

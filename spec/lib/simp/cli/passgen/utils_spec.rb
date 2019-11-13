@@ -149,7 +149,7 @@ EOM
   describe '.apply_manifest' do
     let(:manifest) { "simplib::passgen::remove('name')" }
     let(:cmd_prefix) {
-      "umask 0007 && sg puppet -c 'puppet apply --color=false" +
+      "sg puppet -c 'puppet apply --color=false" +
         " --environment=production --vardir=/server/var/dir"
     }
 
