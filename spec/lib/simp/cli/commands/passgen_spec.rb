@@ -720,11 +720,86 @@ dev_name1
 
       end
 
-#FIXME
-=begin
       context 'current manager' do
+        let(:password_list) { {
+          'keys' => {
+            'name1' => {
+              'value'    => { 'password' => 'password1', 'salt' => 'salt1'},
+              'metadata' => {
+                'complex'      => 1,
+                'complex_only' => false,
+                'history'      => [
+                  ['password1_old', 'salt1_old'],
+                  ['password1_old_old', 'salt1_old_old']
+                ]
+              }
+            },
+            'name2' => {
+              'value' => { 'password' => 'password2', 'salt' => 'salt2'},
+              'metadata' => {
+                'complex'      => 1,
+                'complex_only' => false,
+                'history'      => []
+              }
+            }
+          }
+        } }
+
+        before :each do
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+        end
+
+        it 'listx available names for the top folder of the default env' do
+          # mock the puppet apply with a list manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          # mock load of YAML file written when manifest was applied
+          allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+            .and_return(password_list)
+
+          expected_output = <<-EOM
+'production' Environment Names
+==============================
+name1
+name2
+
+          EOM
+
+          @passgen.run(['-l'])
+          expect( @output.string ).to eq(expected_output)
+        end
+
+        it 'lists available names for the specified <env,folder,backend>' do
+          # mock the puppet apply with a list manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          # mock load of YAML file written when manifest was applied
+          allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+            .and_return(password_list)
+
+          expected_output = <<-EOM
+'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Names
+===================================================================
+name1
+name2
+
+          EOM
+
+          @passgen.run(['-l', '-e', 'dev', '--folder', 'folder1',
+            '--backend', 'backend3'])
+
+          expect( @output.string ).to eq(expected_output)
+        end
+
       end
-=end
     end
 
     # This test verifies that the correct password manager object has been
@@ -749,7 +824,7 @@ dev_name1
           create_password_files(@dev_password_dir, ['dev_name1'])
         end
 
-        it 'lists available names for default environment' do
+        it 'lists passwords for specified names in default env' do
           expected_output = <<-EOM
 'production' Environment Passwords
 ==================================
@@ -768,7 +843,7 @@ Name: production_name
           expect( @output.string ).to eq(expected_output)
         end
 
-        it 'lists available names for specified environment' do
+        it 'lists passwords for specified names in specified env' do
           expected_output = <<-EOM
 'dev' Environment Passwords
 ===========================
@@ -784,11 +859,93 @@ Name: dev_name1
         end
       end
 
-#FIXME
-=begin
       context 'current manager' do
+        let(:password_info1) { {
+          'value'    => { 'password' => 'password1', 'salt' => 'salt1'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => [
+              ['password1_old', 'salt1_old'],
+              ['password1_old_old', 'salt1_old_old']
+            ]
+          }
+        } }
+
+        let(:password_info2) { {
+          'value' => { 'password' => 'password2', 'salt' => 'salt2'},
+          'metadata' => {
+            'complex'      => 1,
+            'complex_only' => false,
+            'history'      => []
+          }
+        } }
+
+        before :each do
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+        end
+
+        it 'lists passwords for specified names in default env' do
+          # mock each puppet apply with a get manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          # mock each load of YAML file written when corresponding manifest
+          # was applied
+          allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+            .and_return(password_info1, password_info2)
+
+          expected_output = <<-EOM
+'production' Environment Passwords
+==================================
+Name: name1
+  Current:  password1
+  Previous: password1_old
+
+Name: name2
+  Current:  password2
+
+          EOM
+
+          args = ['-n', 'name1,name2']
+          @passgen.run(args)
+          expect( @output.string ).to eq(expected_output)
+        end
+
+        it 'lists passwords for specified names in specified <env,folder,backend>' do
+          # mock each puppet apply with a get manifest
+          allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+           .and_return({}) # don't care about return
+
+          # mock each load of YAML file written when corresponding manifest
+          # was applied
+          allow(Simp::Cli::Passgen::Utils).to receive(:load_yaml)
+            .and_return(password_info1, password_info2)
+
+          expected_output = <<-EOM
+'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Passwords
+=======================================================================
+Name: name1
+  Current:  password1
+  Previous: password1_old
+
+Name: name2
+  Current:  password2
+
+          EOM
+
+          @passgen.run(['-n', 'name1,name2', '-e', 'dev', '--folder', 'folder1',
+            '--backend', 'backend3'])
+
+          expect( @output.string ).to eq(expected_output)
+        end
       end
-=end
     end
 
     # This test verifies that the correct password manager object has been
@@ -870,6 +1027,15 @@ Processing 'dev_name1' in 'dev' Environment
 #FIXME
 =begin
       context 'current manager' do
+        before :each do
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+        end
       end
 =end
     end
@@ -911,6 +1077,15 @@ Processing 'dev_name1' in 'dev' Environment
 #FIXME
 =begin
       context 'current manager' do
+        before :each do
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_prod, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+
+          allow(Simp::Cli::ExecUtils).to receive(:run_command)
+            .with(@module_list_command_dev, false, @passgen.logger)
+            .and_return(@new_simplib_module_list_results)
+        end
       end
 =end
     end
