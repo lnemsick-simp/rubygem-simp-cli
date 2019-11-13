@@ -280,8 +280,8 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       end
 
       opts.on('--complexity COMPLEXITY', Integer,
-          'Password complexity to use when',
-          'auto-generated. For existing passwords',
+          'Password complexity to use when a password',
+          'is auto-generated. For existing passwords',
           'stored in a libkv key/value store, defaults',
           'to the current password complexity.',
           "Otherwise, defaults to #{DEFAULT_COMPLEXITY}.",
@@ -335,17 +335,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         @force_remove = force_remove
       end
 
-      opts.on('--[no-]validate',
-            'Enabled validation of new passwords with',
-            'libpwscore/cracklib. **Only** appropriate',
-            'for user passwords and does not apply to',
-            'passwords generated via simp-simplib',
-            'functions (environments with simplib >=',
-            "#{LIBKV_SIMPLIB_VERSION}). Defaults to " +
-            "#{translate_bool(DEFAULT_VALIDATE)}.") do |validate|
-        @password_gen_options[:validate] = validate
-      end
-
       opts.on('--length LENGTH', Integer,
             'Password length to use when auto-generated.',
             'Defaults to the current password length,',
@@ -354,11 +343,21 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
             "to #{DEFAULT_PASSWORD_LENGTH}.") do |length|
         @password_gen_options[:length] = length
       end
-    end
 
-    opt_parser.on('-v', '--verbose',
-            'Verbose console output (stacks).' ) do
-      @verbose  += 1
+      opts.on('--[no-]validate',
+            'Enabled validation of new passwords with',
+            'libpwquality/cracklib. **Only** appropriate',
+            'for user passwords and does not apply to',
+            'passwords generated via simp-simplib',
+            'functions (environments with simplib >=',
+            "#{LIBKV_SIMPLIB_VERSION}). Defaults to " +
+            "#{translate_bool(DEFAULT_VALIDATE)}.") do |validate|
+        @password_gen_options[:validate] = validate
+      end
+
+      opts.on('-v', '--verbose', 'Verbose console output (stacks).' ) do
+        @verbose  += 1
+      end
     end
 
 
