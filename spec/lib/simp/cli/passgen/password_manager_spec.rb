@@ -205,9 +205,7 @@ describe Simp::Cli::Passgen::PasswordManager do
     end
   end
 
-#FIXME
   describe '#set_password' do
-
     let(:options) do
       {
         :auto_gen             => false,
@@ -215,20 +213,63 @@ describe Simp::Cli::Passgen::PasswordManager do
         :default_length       => 32,
         :minimum_length       => 8,
         :default_complexity   => 0,
-        :default_complex_only => false
+        :default_complex_only => false,
+        # set length, complexity, and complex_only because we are mocking
+        # #merge_password_options
+        :length               => 48,
+        :complexity           => 1,
+        :complex_only         => true
       }
     end
 
+    let(:new_password) { 'new_password' }
+
     it 'calls #get_and_set_password and returns the new password for name in the specified env when :auto_gen=false' do
-    #  expect( @manager.set_password('production_name1', options) ).to eq('first_new_password')
+      allow(@manager).to receive(:merge_password_options)
+        .with(@simple_name, options).and_return(options)
+
+      allow(@manager).to receive(:get_and_set_password)
+        .with(@simple_name, options).and_return(new_password)
+
+      expect( @manager.set_password(@simple_name, options) )
+        .to eq(new_password)
     end
 
     it 'calls #get_and_set_password and returns the new password for name in the <env,folder,backend> when :auto_gen=false' do
+      allow(@manager_custom).to receive(:merge_password_options)
+        .with(@complex_name, options).and_return(options)
+
+      allow(@manager_custom).to receive(:get_and_set_password)
+        .with(@complex_name, options).and_return(new_password)
+
+      expect( @manager_custom.set_password(@simple_name, options) )
+        .to eq(new_password)
     end
 
     it 'calls #generate_and_set_password and returns the new password for name in the specified env when :auto_gen=true' do
+      new_options = options.dup
+      new_options[:auto_gen] = true
+      allow(@manager).to receive(:merge_password_options)
+        .with(@simple_name, new_options).and_return(new_options)
+
+      allow(@manager).to receive(:generate_and_set_password)
+        .with(@simple_name, new_options).and_return(new_password)
+
+      expect( @manager.set_password(@simple_name, new_options) )
+        .to eq(new_password)
     end
+
     it 'calls #generate_and_set_password and returns the new password for name in the <env,folder,backend> when :auto_gen=true' do
+      new_options = options.dup
+      new_options[:auto_gen] = true
+      allow(@manager_custom).to receive(:merge_password_options)
+        .with(@complex_name, new_options).and_return(new_options)
+
+      allow(@manager_custom).to receive(:generate_and_set_password)
+        .with(@complex_name, new_options).and_return(new_password)
+
+      expect( @manager_custom.set_password(@simple_name, new_options) )
+        .to eq(new_password)
     end
 
     it 'fails when options is missing a required key' do
@@ -249,7 +290,7 @@ describe Simp::Cli::Passgen::PasswordManager do
         .with(@simple_name, options)
         .and_raise(Simp::Cli::ProcessingError, 'Current password retrieve failed')
 
-      expect { @manager.set_password('name1',options) }.to raise_error(
+      expect { @manager.set_password(@simple_name, options) }.to raise_error(
         Simp::Cli::ProcessingError,
         'Set failed: Current password retrieve failed')
     end
@@ -259,15 +300,37 @@ describe Simp::Cli::Passgen::PasswordManager do
         .with(@complex_name, options)
         .and_raise(Simp::Cli::ProcessingError, 'Current password retrieve failed')
 
-      expect { @manager_custom.set_password('name1',options) }.to raise_error(
+      expect { @manager_custom.set_password(@simple_name, options) }.to raise_error(
         Simp::Cli::ProcessingError,
         'Set failed: Current password retrieve failed')
     end
 
-    it 'fails if #generate_and_set_password fails' do
+    it 'fails if #get_and_set_password fails' do
+      allow(@manager).to receive(:merge_password_options)
+        .with(@simple_name, options).and_return(options)
+
+      allow(@manager).to receive(:get_and_set_password)
+        .with(@simple_name, options).and_raise(Simp::Cli::ProcessingError,
+        'FATAL: Too many failed attempts to enter password')
+
+      expect { @manager.set_password(@simple_name, options) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Set failed: FATAL: Too many failed attempts to enter password')
     end
 
-    it 'fails if #get_and_set_password fails' do
+    it 'fails if #generate_and_set_password fails' do
+      new_options = options.dup
+      new_options[:auto_gen] = true
+      allow(@manager).to receive(:merge_password_options)
+        .with(@simple_name, new_options).and_return(new_options)
+
+      allow(@manager).to receive(:generate_and_set_password)
+        .with(@simple_name, new_options).and_raise(Simp::Cli::ProcessingError,
+        'Password generate and set failed')
+
+      expect { @manager.set_password(@simple_name, new_options) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Set failed: Password generate and set failed')
     end
   end
 
@@ -357,12 +420,12 @@ describe Simp::Cli::Passgen::PasswordManager do
     end
 
     it 'fails when manifest apply fails' do
-      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
-        .and_raise(Simp::Cli::ProcessingError, "Password generate and set failed")
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest).and_raise(
+        Simp::Cli::ProcessingError, 'Password generate and set failed')
 
       expect{ @manager.generate_and_set_password(@simple_name, options) }
         .to raise_error(
-        Simp::Cli::ProcessingError, "Password generate and set failed")
+        Simp::Cli::ProcessingError, 'Password generate and set failed')
     end
 
     it 'fails when interim password file cannot be read' do
