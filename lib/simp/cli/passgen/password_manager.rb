@@ -119,10 +119,11 @@ class Simp::Cli::Passgen::PasswordManager
       if err_lines.join("\n").include?(failure_message)
         # Don't spew out a bunch of error debug for a failure
         # we have generated!
-        err_msg = "'#{name}' password not found"
+        err_msg = "Remove failed: '#{name}' password not found"
         raise Simp::Cli::ProcessingError.new(err_msg)
       else
-        raise e
+        err_msg = "Remove failed: #{e.message}"
+        raise Simp::Cli::ProcessingError.new(err_msg)
       end
     end
   end
@@ -209,7 +210,7 @@ class Simp::Cli::Passgen::PasswordManager
         file { '#{result_file}': content => to_yaml($password_info) }
       EOM
 
-      opts = { :title => 'Password retrieve', :env => @environment }
+      opts = { :title => 'Current password retrieve', :env => @environment }
       Simp::Cli::Passgen::Utils::apply_manifest(manifest, opts, logger)
       password_info = Simp::Cli::Passgen::Utils::load_yaml(result_file,
         'password info', logger)

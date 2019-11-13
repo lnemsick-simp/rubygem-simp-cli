@@ -3,6 +3,11 @@ require 'simp/cli/passgen/password_manager'
 require 'etc'
 require 'spec_helper'
 
+# ***WARNING***: Many tests in this file heavily make use of mocked behavior
+# because the fundamental underlying operations, exec'ing `puppet apply`
+# calls and reading files in transient directories, are not easily unit
+# tested.  Full testing will be done in a detailed acceptance test!
+
 describe Simp::Cli::Passgen::PasswordManager do
   before :each do
     @user  = Etc.getpwuid(Process.uid).name
@@ -31,8 +36,6 @@ describe Simp::Cli::Passgen::PasswordManager do
 
   #
   # Password Manager API tests
-  # Most tests use mocked behavior for the `puppet apply` operations.  Those operations
-  # must be tested with an acceptance test.
   #
   describe 'location' do
     it 'returns string with only environment when no backend or folder are specified' do
@@ -81,24 +84,18 @@ describe Simp::Cli::Passgen::PasswordManager do
       }
     } }
 
-    it 'returns empty array when no names exist for top folder of the specified env' do
+    # NOTE: Since we are mocking Simp::Cli::Passgen::PasswordManager#password_list,
+    # the test cases for top folder and <env,folder,backend> are identical.  As
+    # such, we have omitted the duplicate tests.
+
+    it 'returns empty array when no names exist for the folder' do
       allow(@manager).to receive(:password_list).and_return({})
       expect(@manager.name_list).to eq([])
     end
 
-    it 'returns empty array when no names exist for the <env, folder, backend>' do
-      allow(@manager_custom).to receive(:password_list).and_return({})
-      expect(@manager_custom.name_list).to eq([])
-    end
-
-    it 'returns list of available names for the top folder of the specified env' do
+    it 'returns list of available names for the folder of the specified env' do
       allow(@manager).to receive(:password_list).and_return(password_list)
       expect(@manager.name_list).to eq(['name1', 'name2'])
-    end
-
-    it 'returns list of available names for the <env, folder, backend>' do
-      allow(@manager_custom).to receive(:password_list).and_return(password_list)
-      expect(@manager_custom.name_list).to eq(['name1', 'name2'])
     end
 
     it 'fails when #password_list fails' do
@@ -130,7 +127,7 @@ describe Simp::Cli::Passgen::PasswordManager do
       expect( @manager.password_info('name1') ).to eq(password_info)
     end
 
-    it 'returns hash with info for name in <env, folder, backend> ' do
+    it 'returns hash with info for name in <env,folder,backend> ' do
       allow(@manager_custom).to receive(:current_password_info)
         .with(@complex_name).and_return(password_info)
 
@@ -159,38 +156,53 @@ describe Simp::Cli::Passgen::PasswordManager do
     it 'fails when #current_password_info fails' do
       allow(@manager).to receive(:current_password_info)
         .with(@simple_name).and_raise(
-        Simp::Cli::ProcessingError, 'Password retrieve failed')
+        Simp::Cli::ProcessingError, 'Current password retrieve failed')
 
       expect { @manager.password_info(@simple_name) }.to raise_error(
         Simp::Cli::ProcessingError,
-        'Retrieve failed: Password retrieve failed')
+        'Retrieve failed: Current password retrieve failed')
     end
 
   end
 
-#FIXME
   describe '#remove_password' do
-
     it 'removes password for name in the specified env' do
-=begin
-      @manager.remove_password('production_name1')
-=end
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      expect{ @manager.remove_password('name1') }.to_not raise_error
     end
 
-    it 'removes password for name in <env, folder, backend>' do
+    it 'removes password for name in <env,folder,backend>' do
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_return({}) # don't care about return
+
+      expect{ @manager_custom.remove_password('name1') }.to_not raise_error
     end
 
     it 'fails when no password for the name exists' do
-=begin
+      err_msg = "Error: Evaluation Error: Error while evaluating a" +
+        " Function Call, Password not found (location info)"
+
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, err_msg)
+
       expect { @manager.remove_password('oops') }.to raise_error(
         Simp::Cli::ProcessingError,
-        "'oops' password not found")
-=end
+        "Remove failed: 'oops' password not found")
     end
 
     it 'fails when puppet apply with remove operation fails' do
-    end
+      err_msg = "Error: Evaluation Error: Error while evaluating a" +
+        " Function Call, libkv Configuration Error for libkv::exists with..."
 
+      allow(Simp::Cli::Passgen::Utils).to receive(:apply_manifest)
+        .and_raise(Simp::Cli::ProcessingError, err_msg)
+
+      expect { @manager.remove_password('oops') }.to raise_error(
+        Simp::Cli::ProcessingError,
+        "Remove failed: #{err_msg}")
+    end
   end
 
 #FIXME
@@ -207,38 +219,16 @@ describe Simp::Cli::Passgen::PasswordManager do
       }
     end
 
-    it 'updates password and returns new password for name in the specified env' do
-=begin
-      # bypass password input
-      allow(@manager).to receive(:get_new_password).and_return(
-        ['first_new_password', false], ['second_new_password', false])
-
-      expect( @manager.set_password('production_name1', options) ).to eq('first_new_password')
-      expect( @manager.set_password('production_name2', options) ).to eq('second_new_password')
-=end
+    it 'calls #get_and_set_password and returns the new password for name in the specified env when :auto_gen=false' do
+    #  expect( @manager.set_password('production_name1', options) ).to eq('first_new_password')
     end
 
-    it 'updates password and returns new password for name in <env, folder, backend>' do
+    it 'calls #get_and_set_password and returns the new password for name in the <env,folder,backend> when :auto_gen=false' do
     end
 
-    it 'updates password file, and backs up old files, and returns new password for name in the specified password dir' do
+    it 'calls #generate_and_set_password and returns the new password for name in the specified env when :auto_gen=true' do
     end
-
-    it 'creates and sets a new password with same length as old password when auto_gen=true' do
-      new_options = options.dup
-      new_options[:auto_gen] = true
-=begin
-      new_password = @manager.set_password('production_name1', new_options)
-      expect(new_password.length).to eq('production_name1_password'.length)
-=end
-    end
-
-    it 'creates password file for new name' do
-=begin
-      allow(@manager).to receive(:get_new_password).and_return(['new_password',false])
-
-      expect( @manager.set_password('new_name', options) ).to eq('new_password')
-=end
+    it 'calls #generate_and_set_password and returns the new password for name in the <env,folder,backend> when :auto_gen=true' do
     end
 
     it 'fails when options is missing a required key' do
@@ -254,23 +244,31 @@ describe Simp::Cli::Passgen::PasswordManager do
         'Missing :auto_gen option')
     end
 
-    it 'fails if puppet apply to get previous password fails' do
-    end
+    it 'fails if #merge_password_options fails for name in specified env' do
+      allow(@manager).to receive(:merge_password_options)
+        .with(@simple_name, options)
+        .and_raise(Simp::Cli::ProcessingError, 'Current password retrieve failed')
 
-    it 'fails if get_new_password fails' do
-=begin
-      allow(@manager).to receive(:get_new_password).and_raise(
-        Simp::Cli::ProcessingError, 'FATAL: Too many failed attempts to enter password')
-
-      expect { @manager.set_password('new_name', options) }.to raise_error(
+      expect { @manager.set_password('name1',options) }.to raise_error(
         Simp::Cli::ProcessingError,
-        'Set failed: FATAL: Too many failed attempts to enter password')
-=end
+        'Set failed: Current password retrieve failed')
     end
 
-    it 'fails if puppet apply to set password fails' do
+    it 'fails if #merge_password_options fails for name in <env,folder,backend>' do
+      allow(@manager_custom).to receive(:merge_password_options)
+        .with(@complex_name, options)
+        .and_raise(Simp::Cli::ProcessingError, 'Current password retrieve failed')
+
+      expect { @manager_custom.set_password('name1',options) }.to raise_error(
+        Simp::Cli::ProcessingError,
+        'Set failed: Current password retrieve failed')
     end
 
+    it 'fails if #generate_and_set_password fails' do
+    end
+
+    it 'fails if #get_and_set_password fails' do
+    end
   end
 
 
@@ -597,10 +595,10 @@ describe Simp::Cli::Passgen::PasswordManager do
     context 'errors' do
       it 'fails if it puppet apply to get current password fails' do
         allow(@manager).to receive(:current_password_info).with(fullname)
-          .and_raise(Simp::Cli::ProcessingError, 'Password retrieve failed')
+          .and_raise(Simp::Cli::ProcessingError, 'Current password retrieve failed')
 
         expect { @manager.merge_password_options(fullname, options) }.to \
-          raise_error(Simp::Cli::ProcessingError, 'Password retrieve failed')
+          raise_error(Simp::Cli::ProcessingError, 'Current password retrieve failed')
       end
     end
   end
