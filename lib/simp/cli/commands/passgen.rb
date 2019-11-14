@@ -437,14 +437,21 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def set_passwords(manager, names, password_gen_options)
     errors = []
     names.each do |name|
-      logger.notice("Processing '#{name}' in #{manager.location}")
+      # space at end tells logger to omit <CR>, so spinner+done is on same line
+      logger.notice("Processing '#{name}' in #{manager.location}... ")
       begin
-        password = manager.set_password(name, password_gen_options)
+        password = nil
+        Simp::Cli::Utils::show_wait_spinner {
+          password = manager.set_password(name, password_gen_options)
+        }
+        logger.notice('done.')
         logger.notice("  '#{name}' new password: #{password}")
       rescue Exception => e
+        logger.notice('done.')
         logger.notice("  Skipped '#{name}'")
         errors << "'#{name}': #{e}"
       end
+      logger.notice
     end
 
     unless errors.empty?

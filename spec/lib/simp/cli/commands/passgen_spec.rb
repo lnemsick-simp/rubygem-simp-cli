@@ -299,14 +299,18 @@ Failed to remove the following passwords in 'production' Environment:
       end
 
       expected_output = <<-EOM
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   'name1' new password: name1_new_password
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   'name2' new password: name2_new_password
-Processing 'name3' in 'production' Environment
+
+Processing 'name3' in 'production' Environment... done.
   'name3' new password: name3_new_password
-Processing 'name4' in 'production' Environment
+
+Processing 'name4' in 'production' Environment... done.
   'name4' new password: name4_new_password
+
       EOM
 
       @passgen.set_passwords(mock_manager, names, password_gen_options)
@@ -331,14 +335,18 @@ Processing 'name4' in 'production' Environment
         and_raise(Simp::Cli::ProcessingError, 'Set failed: connection timed out')
 
       expected_stdout = <<-EOM
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   'name1' new password: name1_new_password
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Skipped 'name2'
-Processing 'name3' in 'production' Environment
+
+Processing 'name3' in 'production' Environment... done.
   Skipped 'name3'
-Processing 'name4' in 'production' Environment
+
+Processing 'name4' in 'production' Environment... done.
   'name4' new password: name4_new_password
+
       EOM
 
       expected_err_msg = <<-EOM
@@ -1262,10 +1270,12 @@ Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Back
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   'name1' new password: name1_new_password
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   'name2' new password: name2_new_password
+
           EOM
 
           @passgen.run(['-s', 'name1,name2'])
@@ -1286,8 +1296,9 @@ Processing 'name2' in 'production' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'dev'... done.
-Processing 'name1' in 'dev' Environment
+Processing 'name1' in 'dev' Environment... done.
   'name1' new password: name1_new_password
+
           EOM
 
           @passgen.run(['-s', 'name1'] + custom_args)
@@ -1323,10 +1334,12 @@ Processing 'name1' in 'dev' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   'name1' new password: name1_new_password
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   'name2' new password: name2_new_password
+
           EOM
 
           @passgen.run(['-s', 'name1,name2'])
@@ -1347,8 +1360,9 @@ Processing 'name2' in 'production' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'dev'... done.
-Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
+Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend... done.
   'name1' new password: name1_new_password
+
           EOM
 
           @passgen.run(['-s', 'name1', '--folder', 'folder1',
