@@ -403,7 +403,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def remove_passwords(manager, names, force_remove)
     errors = []
     names.each do |name|
-      logger.notice("Processing '#{name}' in #{manager.location}")
       remove = force_remove
       unless force_remove
         prompt = "Are you sure you want to remove all info for '#{name}'?".bold
@@ -411,16 +410,24 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
       end
 
       if remove
+        # space at end tells logger to omit <CR>, so spinner+done is on same line
+        logger.notice("Processing '#{name}' in #{manager.location}... ")
         begin
-          manager.remove_password(name)
+          Simp::Cli::Utils::show_wait_spinner {
+            manager.remove_password(name)
+          }
+          logger.notice('done.')
           logger.notice("  Removed '#{name}'")
         rescue Exception => e
+          logger.notice('done.')
           logger.notice("  Skipped '#{name}'")
           errors << "'#{name}': #{e}"
         end
       else
-        logger.notice("  Skipped '#{name}'")
+        logger.notice("Skipped '#{name}' in #{manager.location}")
       end
+
+      logger.notice
     end
 
     unless errors.empty?
@@ -451,6 +458,7 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
         logger.notice("  Skipped '#{name}'")
         errors << "'#{name}': #{e}"
       end
+
       logger.notice
     end
 

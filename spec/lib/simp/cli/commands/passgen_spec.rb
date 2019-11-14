@@ -188,14 +188,18 @@ Warning: Missing dependency 'puppetlabs-apt':
       })
 
       expected_output = <<-EOM
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Removed 'name2'
-Processing 'name3' in 'production' Environment
+
+Processing 'name3' in 'production' Environment... done.
   Removed 'name3'
-Processing 'name4' in 'production' Environment
+
+Processing 'name4' in 'production' Environment... done.
   Removed 'name4'
+
       EOM
 
       @passgen.remove_passwords(mock_manager, names, false)
@@ -209,14 +213,14 @@ Processing 'name4' in 'production' Environment
         :location        => "'production' Environment"
       })
       expected_output = <<-EOM
-Processing 'name1' in 'production' Environment
-  Skipped 'name1'
-Processing 'name2' in 'production' Environment
-  Skipped 'name2'
-Processing 'name3' in 'production' Environment
-  Skipped 'name3'
-Processing 'name4' in 'production' Environment
-  Skipped 'name4'
+Skipped 'name1' in 'production' Environment
+
+Skipped 'name2' in 'production' Environment
+
+Skipped 'name3' in 'production' Environment
+
+Skipped 'name4' in 'production' Environment
+
       EOM
 
       @passgen.remove_passwords(mock_manager, names, false)
@@ -230,14 +234,18 @@ Processing 'name4' in 'production' Environment
       })
 
       expected_output = <<-EOM
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Removed 'name2'
-Processing 'name3' in 'production' Environment
+
+Processing 'name3' in 'production' Environment... done.
   Removed 'name3'
-Processing 'name4' in 'production' Environment
+
+Processing 'name4' in 'production' Environment... done.
   Removed 'name4'
+
       EOM
 
       @passgen.remove_passwords(mock_manager, names, true)
@@ -260,14 +268,18 @@ Processing 'name4' in 'production' Environment
 
 
       expected_stdout = <<-EOM
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Skipped 'name2'
-Processing 'name3' in 'production' Environment
+
+Processing 'name3' in 'production' Environment... done.
   Skipped 'name3'
-Processing 'name4' in 'production' Environment
+
+Processing 'name4' in 'production' Environment... done.
   Removed 'name4'
+
       EOM
 
       expected_err_msg = <<-EOM
@@ -1055,10 +1067,12 @@ Name: name1
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Removed 'name2'
+
           EOM
 
           @passgen.run(['-r', 'name1,name2'])
@@ -1079,8 +1093,9 @@ Processing 'name2' in 'production' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment...
   Removed 'name1'
+
           EOM
 
           args = ['-r', 'name1', '--force-remove']
@@ -1103,8 +1118,9 @@ Processing 'name1' in 'production' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'dev'... done.
-Processing 'name1' in 'dev' Environment
+Processing 'name1' in 'dev' Environment... done.
   Removed 'name1'
+
           EOM
 
           @passgen.run(['-r', 'name1', '-e', 'dev'])
@@ -1141,10 +1157,12 @@ Processing 'name1' in 'dev' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
-Processing 'name2' in 'production' Environment
+
+Processing 'name2' in 'production' Environment... done.
   Removed 'name2'
+
           EOM
 
           @passgen.run(['-r', 'name1,name2'])
@@ -1165,8 +1183,9 @@ Processing 'name2' in 'production' Environment
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
-Processing 'name1' in 'production' Environment
+Processing 'name1' in 'production' Environment... done.
   Removed 'name1'
+
           EOM
 
           @passgen.run(['-r', 'name1', '--force-remove'])
@@ -1188,8 +1207,9 @@ Processing 'name1' in 'production' Environment
 
 expected_output = <<-EOM
 Initializing for environment 'dev'... done.
-Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
+Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend... done.
   Removed 'name1'
+
           EOM
 
           @passgen.run(['-r', 'name1', '-e', 'dev', '--folder', 'folder1',
