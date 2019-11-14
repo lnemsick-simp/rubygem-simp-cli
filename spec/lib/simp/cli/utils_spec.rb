@@ -5,6 +5,35 @@ require 'tmpdir'
 
 describe Simp::Cli::Utils do
 
+  describe '.show_wait_spinner' do
+    it 'should return result of block' do
+      result = Simp::Cli::Utils.show_wait_spinner {
+        sleep 1
+        'block result'
+      }
+      expect( result ).to eq('block result')
+    end
+
+    it 'should kill spinning thread when block raises' do
+      base_num_threads = Thread.list.select {|thread| thread.status == "run"}.count
+      error = nil
+      begin
+        Simp::Cli::Utils.show_wait_spinner {
+          sleep 1
+          raise 'something bad happened in block'
+        }
+      rescue RuntimeError => e
+        error = e.message
+      end
+
+      expect( error ).to eq('something bad happened in block')
+
+      # This **ASSUMES** we don't have parallel tests enabled...
+      current_num_threads = Thread.list.select {|thread| thread.status == "run"}.count
+      expect( current_num_threads ).to eq(base_num_threads)
+    end
+  end
+
   describe '.validate_password' do
     it 'validates good passwords' do
       expect{ Simp::Cli::Utils.validate_password 'A=V3ry=Go0d=P@ssw0r!' }
