@@ -26,9 +26,9 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   def initialize
     @operation = nil
     @environment = nil
-    @backend = nil
+    @backend = nil       # libkv backend
     @folder = nil        # passgen sub-folder in libkv
-    @password_dir = nil  # fully qualified path to legacy passgen dir
+    @password_dir = nil  # fully qualified path to a legacy passgen dir
     @names = Array.new
     @password_gen_options = {
      :auto_gen             => DEFAULT_AUTO_GEN_PASSWORDS,
@@ -43,7 +43,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     }
     @force_remove = DEFAULT_FORCE_REMOVE
     @verbose = 0         # Verbosity of console output:
-    #                     -1 = ERROR  and above
     #                      0 = NOTICE and above
     #                      1 = INFO   and above
     #                      2 = DEBUG  and above
@@ -72,9 +71,14 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
     if @operation == :show_environment_list
       show_environment_list
     else
-      # construct the correct manager to do the work
-      manager = get_password_manager
-
+      # space at end tells logger to omit <CR>, so spinner+done is on same line
+      logger.notice("Initializing for environment '#{@environment}'... ")
+      manager = nil
+      Simp::Cli::Utils::show_wait_spinner {
+        # construct the correct manager to do the work based on simplib version
+        manager = get_password_manager
+      }
+      logger.notice('done.')
 
       case @operation
       when :show_name_list
@@ -99,8 +103,6 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
   #   for any Puppet environment
   def find_valid_environments
-    logger.info('Looking for environments with simp-simplib installed')
-
     # grab the environments path from the production env puppet master config
     environments_dir = Simp::Cli::Utils.puppet_info[:config]['environmentpath']
     environments = Dir.glob(File.join(environments_dir, '*'))
@@ -473,7 +475,15 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError if `puppet module list` fails
   #   for any Puppet environment
   def show_environment_list
-    valid_envs = find_valid_environments
+    # space at end tells logger to omit <CR>, so spinner+done is on same line
+    logger.notice('Looking for environments with simp-simplib installed... ')
+    valid_envs = nil
+    Simp::Cli::Utils::show_wait_spinner {
+      valid_envs = find_valid_environments
+    }
+    logger.notice('done.')
+
+    logger.notice
     if valid_envs.empty?
       logger.notice('No environments with simp-simplib installed were found.')
     else
@@ -490,12 +500,20 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   # @raise Simp::Cli::ProcessingError upon any password manager failure
   #
   def show_name_list(manager)
+    # space at end tells logger to omit <CR>, so spinner+done is on same line
+    logger.notice('Retrieving password names... ')
     begin
-      names = manager.name_list
+      names = nil
+      Simp::Cli::Utils::show_wait_spinner {
+        names = manager.name_list
+      }
+      logger.notice('done.')
+
+      logger.notice
       if names.empty?
         logger.notice("No passwords found in #{manager.location}")
       else
-        title = "#{manager.location} Names"
+        title = "#{manager.location} Password Names"
         logger.notice(title)
         logger.notice('='*title.length)
         logger.notice(names.join("\n"))

@@ -357,7 +357,12 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
 
   describe '#show_environment_list' do
     it 'lists no environments, when no environments exist' do
-      expected_output = "No environments with simp-simplib installed were found.\n\n"
+      expected_output =<<-EOM
+Looking for environments with simp-simplib installed... done.
+
+No environments with simp-simplib installed were found.
+
+      EOM
       @passgen.show_environment_list
       expect( @output.string ).to eq(expected_output)
     end
@@ -374,7 +379,12 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         .with(command, false, @passgen.logger).and_return(module_list_results)
 
       @passgen.show_environment_list
-      expected_output = "No environments with simp-simplib installed were found.\n\n"
+      expected_output =<<-EOM
+Looking for environments with simp-simplib installed... done.
+
+No environments with simp-simplib installed were found.
+
+      EOM
       expect( @output.string ).to eq(expected_output)
     end
 
@@ -410,6 +420,8 @@ Failed to set 2 out of 4 passwords in 'production' Environment:
         .with(command, false, @passgen.logger).and_return(module_list_results)
 
       expected_output = <<-EOM
+Looking for environments with simp-simplib installed... done.
+
 Environments
 ============
 production
@@ -445,7 +457,13 @@ test
         :location  => "'production' Environment"
       })
 
-      expected_output = "No passwords found in 'production' Environment\n\n"
+      expected_output =<<-EOM
+Retrieving password names... done.
+
+No passwords found in 'production' Environment
+
+      EOM
+
       @passgen.show_name_list(mock_manager)
       expect( @output.string ).to eq(expected_output)
     end
@@ -457,8 +475,10 @@ test
       })
 
       expected_output = <<-EOM
-'production' Environment Names
-==============================
+Retrieving password names... done.
+
+'production' Environment Password Names
+=======================================
 name1
 name2
 name3
@@ -621,6 +641,8 @@ Failed to retrieve 2 out of 4 passwords in 'production' Environment:
           .and_return(@new_simplib_module_list_results)
 
         expected_output = <<-EOM
+Looking for environments with simp-simplib installed... done.
+
 Environments
 ============
 dev
@@ -691,8 +713,11 @@ production
             .with('production', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
-'production' Environment Names
-==============================
+Initializing for environment 'production'... done.
+Retrieving password names... done.
+
+'production' Environment Password Names
+=======================================
 name1
 name2
 
@@ -711,8 +736,11 @@ name2
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
             .with('dev', nil).and_return(mock_manager)
           expected_output = <<-EOM
-'dev' Environment Names
-=======================
+Initializing for environment 'dev'... done.
+Retrieving password names... done.
+
+'dev' Environment Password Names
+================================
 name1
 
           EOM
@@ -730,8 +758,11 @@ name1
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
             .with('production', '/some/passgen/path').and_return(mock_manager)
           expected_output = <<-EOM
-/some/passgen/path Names
-========================
+Initializing for environment 'production'... done.
+Retrieving password names... done.
+
+/some/passgen/path Password Names
+=================================
 name1
 
           EOM
@@ -763,8 +794,11 @@ name1
             .with('production', nil, nil).and_return(mock_manager)
 
           expected_output = <<-EOM
-'production' Environment Names
-==============================
+Initializing for environment 'production'... done.
+Retrieving password names... done.
+
+'production' Environment Password Names
+=======================================
 name1
 name2
 
@@ -784,8 +818,11 @@ name2
             .with('dev', 'backend3', 'folder1').and_return(mock_manager)
 
           expected_output = <<-EOM
-'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Names
-===================================================================
+Initializing for environment 'dev'... done.
+Retrieving password names... done.
+
+'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Password Names
+============================================================================
 name1
 
           EOM
@@ -795,7 +832,6 @@ name1
 
           expect( @output.string ).to eq(expected_output)
         end
-
       end
     end
 
@@ -851,6 +887,7 @@ name1
             .with('production', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -878,6 +915,7 @@ Name: name2
           allow(Simp::Cli::Passgen::LegacyPasswordManager).to receive(:new)
             .with('dev', nil).and_return(mock_manager)
           expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 'dev' Environment Passwords
 ===========================
 Name: name1
@@ -918,6 +956,7 @@ Name: name1
             .with('production', nil, nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -946,6 +985,7 @@ Name: name2
             .with('dev', 'backend3', 'folder1').and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Passwords
 =======================================================================
 Name: name1
@@ -994,6 +1034,7 @@ Name: name1
             .with('production', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   Removed 'name1'
 Processing 'name2' in 'production' Environment
@@ -1017,6 +1058,7 @@ Processing 'name2' in 'production' Environment
             .with('production', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   Removed 'name1'
           EOM
@@ -1040,6 +1082,7 @@ Processing 'name1' in 'production' Environment
             .with('dev', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 Processing 'name1' in 'dev' Environment
   Removed 'name1'
           EOM
@@ -1077,6 +1120,7 @@ Processing 'name1' in 'dev' Environment
             .with('production', nil, nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   Removed 'name1'
 Processing 'name2' in 'production' Environment
@@ -1100,6 +1144,7 @@ Processing 'name2' in 'production' Environment
             .with('production', nil, nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   Removed 'name1'
           EOM
@@ -1122,6 +1167,7 @@ Processing 'name1' in 'production' Environment
             .with('dev', 'backend3', 'folder1').and_return(mock_manager)
 
 expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
   Removed 'name1'
           EOM
@@ -1203,6 +1249,7 @@ Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Back
             .with('production', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   'name1' new password: name1_new_password
 Processing 'name2' in 'production' Environment
@@ -1226,6 +1273,7 @@ Processing 'name2' in 'production' Environment
             .with('dev', nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 Processing 'name1' in 'dev' Environment
   'name1' new password: name1_new_password
           EOM
@@ -1262,6 +1310,7 @@ Processing 'name1' in 'dev' Environment
             .with('production', nil, nil).and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'production'... done.
 Processing 'name1' in 'production' Environment
   'name1' new password: name1_new_password
 Processing 'name2' in 'production' Environment
@@ -1285,6 +1334,7 @@ Processing 'name2' in 'production' Environment
             .with('dev', 'backend3', 'folder1').and_return(mock_manager)
 
           expected_output = <<-EOM
+Initializing for environment 'dev'... done.
 Processing 'name1' in 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend
   'name1' new password: name1_new_password
           EOM
