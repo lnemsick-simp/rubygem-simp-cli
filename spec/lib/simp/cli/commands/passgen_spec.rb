@@ -528,6 +528,8 @@ name3
       } )
 
       expected_output = <<-EOM
+Retrieving password information... done.
+
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -573,6 +575,8 @@ Name: name4
         and_raise(Simp::Cli::ProcessingError, 'Set failed: connection timed out')
 
       expected_stdout = <<-EOM
+Retrieving password information... done.
+
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -888,6 +892,8 @@ name1
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
+Retrieving password information... done.
+
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -916,6 +922,8 @@ Name: name2
             .with('dev', nil).and_return(mock_manager)
           expected_output = <<-EOM
 Initializing for environment 'dev'... done.
+Retrieving password information... done.
+
 'dev' Environment Passwords
 ===========================
 Name: name1
@@ -957,6 +965,8 @@ Name: name1
 
           expected_output = <<-EOM
 Initializing for environment 'production'... done.
+Retrieving password information... done.
+
 'production' Environment Passwords
 ==================================
 Name: name1
@@ -986,6 +996,8 @@ Name: name2
 
           expected_output = <<-EOM
 Initializing for environment 'dev'... done.
+Retrieving password information... done.
+
 'dev' Environment, 'folder1' Folder, 'backend3' libkv Backend Passwords
 =======================================================================
 Name: name1

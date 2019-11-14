@@ -537,24 +537,33 @@ class Simp::Cli::Commands::Passgen < Simp::Cli::Commands::Command
   #   info for all names
   #
   def show_passwords(manager, names)
+    # space at end tells logger to omit <CR>, so spinner+done is on same line
+    logger.notice("Retrieving password information... ")
+    results = []
+    errors = []
+    Simp::Cli::Utils::show_wait_spinner {
+      names.each do |name|
+        results << "Name: #{name}"
+        begin
+          info = manager.password_info(name)
+          results << "  Current:  #{info['value']['password']}"
+          unless info['metadata']['history'].empty?
+            results << "  Previous: #{info['metadata']['history'][0][0]}"
+          end
+        rescue Exception => e
+          results << '  Skipped'
+          errors << "'#{name}': #{e}"
+        end
+        results << ''
+      end
+    }
+    logger.notice('done.')
+
+    logger.notice
     title = "#{manager.location} Passwords"
     logger.notice(title)
     logger.notice('='*title.length)
-    errors = []
-    names.each do |name|
-      logger.notice("Name: #{name}")
-      begin
-        info = manager.password_info(name)
-        logger.notice("  Current:  #{info['value']['password']}")
-        unless info['metadata']['history'].empty?
-          logger.notice("  Previous: #{info['metadata']['history'][0][0]}")
-        end
-      rescue Exception => e
-        logger.notice('  Skipped')
-        errors << "'#{name}': #{e}"
-      end
-      logger.notice
-    end
+    results.each { |line| logger.notice(line) }
 
     unless errors.empty?
       err_msg = "Failed to retrieve #{errors.length} out of #{names.length}" +
