@@ -6,6 +6,7 @@ require 'rake/clean'
 require 'rspec/core/rake_task'
 require 'rubygems'
 require 'simp/rake'
+require 'simp/rake/beaker'
 require 'simp/cli/version'
 
 Simp::Rake::Pkg.new(File.dirname(__FILE__))
@@ -25,6 +26,9 @@ Find.find( @rakefile_dir ) do |path|
     Find.prune
   end
 end
+
+# Acceptance Tests
+Simp::Rake::Beaker.new(File.dirname(__FILE__))
 
 
 desc 'Ensure gemspec-safe permissions on all files'
@@ -53,6 +57,7 @@ end
 desc 'Run spec tests'
 RSpec::Core::RakeTask.new(:spec) do |t|
   t.rspec_opts = ['--color']
+  t.exclude_pattern = '**/{acceptance,fixtures,files}/**/*_spec.rb'
   t.pattern = 'spec/**/*_spec.rb'
 end
 
