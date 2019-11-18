@@ -17,6 +17,7 @@ HOSTS:
 #    hypervisor: <%= hypervisor %>
 #    vagrant_memsize: 4608
 #    vagrant_cpus: 2
+
   el7:
     roles:
       - client

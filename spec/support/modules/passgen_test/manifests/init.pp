@@ -1,6 +1,6 @@
 class passgen_test(
-  String test_dir = '/var/passgen_test',
-  Hash   keys     = {
+  String $test_dir = '/var/passgen_test',
+  Hash   $keys     = {
     'passgen_test_default' =>
       {}, # <==> complexity=0, complex_only=false, length=32
     'passgen_test_c0_8'    =>
@@ -18,7 +18,7 @@ class passgen_test(
     ensure => directory
   }
 
-  $keys.each { |String $name, Hash $settings|
+  $keys.each |String $name, Hash $settings| {
     file { "${test_dir}/${::environment}-${name}":
       ensure  => present,
       content => simplib::passgen($name, $settings)

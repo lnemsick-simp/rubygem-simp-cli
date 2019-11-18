@@ -15,6 +15,7 @@ def create_env_and_install_modules(host, opts)
   on(host, "simp environment new --skeleton --no-puppetfile-gen #{opts[:env]}")
 
   modules_dir =  File.join(opts[:envs_dir], opts[:env], 'modules')
+  on(host, "mkdir -p #{modules_dir}")
   opts[:modules_to_copy].each do |mod|
     on(host, "cp -r #{opts[:module_staging_dir]}/#{mod} #{modules_dir}")
   end
@@ -94,7 +95,7 @@ shared_examples 'test environments set up' do |master|
       modules_dir = File.join(opts[:envs_dir], opts[:env], 'modules')
       cmd = ['mv',
         File.join(modules_dir, 'simplib-3.15.3'),
-        File.join(modules_dir, 'simplib')
+        File.join(modules_dir, 'simplib'./fixtures/modules/passgen_test)
       ].join(' ')
       on(master, cmd)
     end
