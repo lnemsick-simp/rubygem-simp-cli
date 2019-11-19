@@ -110,7 +110,7 @@ sanity_checks:
   tags: ['docker']
   script:
     - 'if `hash apt-get`; then apt-get update; fi'
-    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; fi'
+    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; else yum install -y cracklib; fi'
     - 'bundle exec rake pkg:check_version'
     - 'bundle exec rake pkg:compare_latest_tag'
     - 'bundle exec rake pkg:create_tag_changelog'
