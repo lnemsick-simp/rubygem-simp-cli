@@ -91,6 +91,8 @@ variables:
   tags: ['docker']
   <<: *setup_bundler_env
   script:
+    - 'if `hash apt-get`; then apt-get update; fi'
+    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; fi'
     # simp cli code fetches USER env variable.  In the docker container
     # HOME=/root is available, but USER is not.
     - 'USER=root SIMP_SKIP_NON_SIMPOS_TESTS=1 bundle exec rake spec'
@@ -110,7 +112,7 @@ sanity_checks:
   tags: ['docker']
   script:
     - 'if `hash apt-get`; then apt-get update; fi'
-    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; else yum install -y cracklib; fi'
+    - 'if `hash apt-get`; then apt-get install -y rpm; fi'
     - 'bundle exec rake pkg:check_version'
     - 'bundle exec rake pkg:compare_latest_tag'
     - 'bundle exec rake pkg:create_tag_changelog'
