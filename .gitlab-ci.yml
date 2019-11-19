@@ -91,6 +91,7 @@ variables:
   tags: ['docker']
   <<: *setup_bundler_env
   script:
+    # simp cli code uses libpwquality or cracklib to validate passwords
     - 'if `hash apt-get`; then apt-get update; fi'
     - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; fi'
     # simp cli code fetches USER env variable.  In the docker container
