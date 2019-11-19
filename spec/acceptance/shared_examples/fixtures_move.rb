@@ -19,20 +19,10 @@ shared_examples 'fixtures move' do |master|
       on(master, "mv #{fixtures_orig_dest}/* #{fixtures_staging_dir}/modules")
     end
 
-    it 'should fix problems with rsync skeleton' do
-      # First 2 fixes are because empty directories don't survive fixtures copy process.
+    it 'should recreate empty dirs removed from rsync skeleton by fixtures copy' do
       # TODO: Replace simp-rsync-skeleton install with git clone instead?
       on(master, "mkdir #{fixtures_staging_dir}/assets/rsync_data/rsync/RedHat/6/bind_dns/default/named/var/tmp")
       on(master, "mkdir #{fixtures_staging_dir}/assets/rsync_data/rsync/RedHat/6/bind_dns/default/named/var/log")
-
-      # This fix is for a bug in .rsync.facl...lists file that was removed from the skeleton.
-      # TODO: Remove this when the bug is fixed.
-      cmd = [
-        'cp',
-        "#{fixtures_staging_dir}/assets/rsync_data/rsync/RedHat/6/bind_dns/default/named/etc/rndc.key",
-        "#{fixtures_staging_dir}/assets/rsync_data/rsync/RedHat/7/bind_dns/default/named/etc/rndc.key"
-      ].join(' ')
-      on(master, cmd)
     end
   end
 end

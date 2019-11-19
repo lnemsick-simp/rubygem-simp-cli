@@ -23,7 +23,7 @@ describe 'simp passgen set up' do
         end
 
         context 'puppet agent run' do
-          it 'should apply manifest to generate passwords and persist each to a file' do
+          it 'should apply manifest to generate passwords and persist to files' do
             retry_on(host, 'puppet agent -t', :desired_exit_codes => [0],
               :max_retries => 5, :verbose => true.to_s)
           end

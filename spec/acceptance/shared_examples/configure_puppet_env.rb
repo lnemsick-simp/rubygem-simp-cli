@@ -6,15 +6,24 @@ shared_examples 'configure puppet env' do |host,env|
     on(host, "puppet config set --section agent environment #{env}")
   end
 
-  it "should restart the puppetserver on #{host}" do
-    cmds = [
-      'puppet resource service puppetserver ensure=stopped',
-      'puppet resource service puppetserver ensure=running'
-    ]
-    on(host, "#{cmds.join('; ')}")
+  it "should reload the puppetserver on #{host} to pick up the changes" do
+    status = on(host, 'puppet resource service puppetserver').stdout
+    reload_cmd = nil
+    if status =~ /running/
+      os_major_ver = fact_on(host, 'operatingsystemmajrelease')
+      if os_major_ver.to_s == 's'
+        reload_cmd = 'service puppetserver reload'
+      else
+        reload_cmd = 'systemctl reload puppetserver'
+      end
+    else
+      reload_cmd = 'puppet resource service puppetserver ensure=running'
+    end
+
+    on(host, reload_cmd)
   end
 
-  it "should wait for the restarted puppetserver to be available on #{host}" do
+  it "should wait for the reloaded puppetserver to be available on #{host}" do
     # wait for it to come up
     master_fqdn = fact_on(host, 'fqdn')
     puppetserver_status_cmd = [

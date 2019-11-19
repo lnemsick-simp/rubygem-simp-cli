@@ -31,7 +31,7 @@ describe 'simp passgen list operations' do
         'new_simplib_libkv_passgen'
       ].each do |env|
         context "name list for #{env} environment" do
-          it 'should list top folder names from passgen_test manifest' do
+          it 'should list top folder names from passgen_test' do
             result = on(host, "simp passgen -e #{env} -l").stdout
             names.each do |name|
               expect(result).to match(/#{name}/)
@@ -40,8 +40,9 @@ describe 'simp passgen list operations' do
 
           if env == 'new_simplib_libkv_passgen'
             [ 'app1', 'app2', 'app3'].each do |folder|
-              it "should list #{folder} folder names from passgen_test manifest" do
-                result = on(host, "simp passgen -e #{env} -l --folder #{folder}").stdout
+              it "should list #{folder} folder names from passgen_test" do
+                cmd = "simp passgen -e #{env} -l --folder #{folder}"
+                result = on(host, cmd).stdout
                 names.each do |name|
                   expect(result).to match(/sub_#{name}/)
                 end
@@ -51,7 +52,7 @@ describe 'simp passgen list operations' do
         end
 
         context "password list for #{env} environment" do
-          it 'should return passwords for top folder names from passgen_test manifest' do
+          it 'should list passwords for top folder names from passgen_test' do
             names.each do |name|
               list_result = on(host, "simp passgen -e #{env} -n #{name}").stdout
               value = on(host, "cat /var/passgen_test/#{env}-#{name}").stdout
@@ -61,10 +62,14 @@ describe 'simp passgen list operations' do
 
           if env == 'new_simplib_libkv_passgen'
             [ 'app1', 'app2', 'app3'].each do |folder|
-              it "should return passwords for #{folder} folder names from passgen_test manifest" do
+              it "should list passwords for #{folder}/ names from passgen_test" do
                 names.each do |name|
-                  list_result = on(host, "simp passgen -e #{env} -n sub_#{name} --folder #{folder}").stdout
-                  value = on(host, "cat /var/passgen_test/#{env}-#{folder}/sub_#{name}").stdout
+                  cmd = "simp passgen -e #{env} -n sub_#{name} --folder #{folder}"
+                  list_result = on(host, cmd).stdout
+
+                  cmd = "cat /var/passgen_test/#{env}-#{folder}/sub_#{name}"
+                  value = on(host, cmd).stdout
+
                   expect(list_result).to match(/#{Regexp.escape(value)}/)
                 end
               end
