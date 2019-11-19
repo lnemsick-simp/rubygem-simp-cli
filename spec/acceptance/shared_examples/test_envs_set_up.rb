@@ -135,5 +135,15 @@ shared_examples 'test environments set up' do |master|
 
       create_env_and_install_modules(master, opts)
     end
+
+    it 'should create libkv directory fully accessible by Puppet for file plugin' do
+      # Can't do this in the passgen_test class, because simplib::passgen
+      # functions run during compilation and will fail before the manifest
+      # apply can create the directory!  In other words, the libkv functions need
+      # the directory to be available at compile time.
+      on(master, 'mkdir -p /var/simp/libkv')
+      on(master, 'chown root:puppet /var/simp/libkv')
+      on(master, 'chmod 0770 /var/simp/libkv')
+    end
   end
 end

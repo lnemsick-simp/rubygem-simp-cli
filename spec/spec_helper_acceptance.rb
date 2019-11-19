@@ -31,24 +31,9 @@ RSpec.configure do |c|
   # Configure all nodes in nodeset
   c.before :suite do
     begin
-      # Install modules and dependencies from spec/fixtures/modules
-      copy_fixture_modules_to( hosts )
-=begin
-      begin
-        server = only_host_with_role(hosts, 'server')
-      rescue ArgumentError =>e
-        server = only_host_with_role(hosts, 'default')
-      end
-
-      # Generate and install PKI certificates on each SUT
-      Dir.mktmpdir do |cert_dir|
-        run_fake_pki_ca_on(server, hosts, cert_dir )
-        hosts.each{ |sut| copy_pki_to( sut, cert_dir, '/etc/pki/simp-testing' )}
-      end
-
-      # add PKI keys
-      copy_keydist_to(server)
-=end
+      # Copy over modules and dependencies from spec/fixtures/modules.
+      # Tests will move to correct locations and let puppetserver handle plugin-sync.
+      copy_fixture_modules_to( hosts, { :pluginsync => false } )
     rescue StandardError, ScriptError => e
       if ENV['PRY']
         require 'pry'; binding.pry
