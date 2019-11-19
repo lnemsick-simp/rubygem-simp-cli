@@ -91,9 +91,10 @@ variables:
   tags: ['docker']
   <<: *setup_bundler_env
   script:
-    # simp cli code uses libpwquality or cracklib to validate passwords
+    # simp cli code uses libpwquality or cracklib to validate passwords and
+    # rsync in simp environment commands
     - 'if `hash apt-get`; then apt-get update; fi'
-    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev; fi'
+    - 'if `hash apt-get`; then apt-get install -y rpm cracklib-runtime openssl libicu-dev rsync; fi'
     # simp cli code fetches USER env variable.  In the docker container
     # HOME=/root is available, but USER is not.
     - 'USER=root SIMP_SKIP_NON_SIMPOS_TESTS=1 bundle exec rake spec'
