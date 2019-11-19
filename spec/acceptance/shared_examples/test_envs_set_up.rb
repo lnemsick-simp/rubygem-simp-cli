@@ -95,7 +95,7 @@ shared_examples 'test environments set up' do |master|
       modules_dir = File.join(opts[:envs_dir], opts[:env], 'modules')
       cmd = ['mv',
         File.join(modules_dir, 'simplib-3.15.3'),
-        File.join(modules_dir, 'simplib'./fixtures/modules/passgen_test)
+        File.join(modules_dir, 'simplib')
       ].join(' ')
       on(master, cmd)
     end
