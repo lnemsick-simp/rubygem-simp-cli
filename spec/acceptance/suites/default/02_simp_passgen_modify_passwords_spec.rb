@@ -5,6 +5,10 @@ require 'spec_helper_acceptance'
 saved_latest_passwords = {}
 
 def validate_password(password, options)
+if password.nil?
+require 'pry-byebug'
+binding.pry
+end
   expect(password.length).to eq(options[:length])
 
   default_chars = (("a".."z").to_a + ("A".."Z").to_a + ("0".."9").to_a).map do|x|
@@ -79,7 +83,7 @@ describe 'simp passgen modify existing passwords' do
               names.each do |name, options|
                 cmd = "simp passgen -e #{env} -s #{name} --auto-gen"
                 set_result = on(host, cmd).stdout
-                new_password = set_result.match(/.*new password: (.*)/m)[1].chomp!.chomp!
+                new_password = set_result.match(/.*new password: (.*)/)[1]
                 saved_latest_passwords[name] = new_password
 
                 validate_password(new_password, options)
@@ -89,8 +93,8 @@ describe 'simp passgen modify existing passwords' do
                 names.each do |name, options|
                   cmd = "simp passgen -e #{env} -s sub_#{name} --auto-gen --folder #{folder}"
                   set_result = on(host, cmd).stdout
-                  new_password = set_result.match(/.*new password: (.*)/m)[1].chomp!.chomp!
-                  saved_latest_passwords["sub_#{name}"] = new_password
+                  new_password = set_result.match(/.*new password: (.*)/)[1]
+                  saved_latest_passwords["#{folder}/sub_#{name}"] = new_password
 
                   validate_password(new_password, options)
                 end
@@ -105,7 +109,7 @@ describe 'simp passgen modify existing passwords' do
               names.each do |name, options|
                 cmd = "simp passgen -e #{env} -s #{name} --auto-gen"
                 set_result = on(host, cmd).stdout
-                new_password = set_result.match(/.*new password: (.*)/m)[1].chomp!.chomp!
+                new_password = set_result.match(/.*new password: (.*)/)[1]
                 saved_latest_passwords[name] = new_password
 
                 expect(new_password.length).to eq(options[:length])
@@ -127,11 +131,11 @@ describe 'simp passgen modify existing passwords' do
           if env == 'new_simplib_libkv_passgen'
             [ 'app1', 'app2', 'app3'].each do |folder|
               it "should list current and previous passwords for #{folder}/ names in #{env}" do
-                names.each do |name|
+                names.keys.each do |name|
                   cmd = "simp passgen -e #{env} -n sub_#{name} --folder #{folder}"
                   list_result = on(host, cmd).stdout
 
-                  curr_value = saved_latest_passwords["sub_#{name}"]
+                  curr_value = saved_latest_passwords["#{folder}/sub_#{name}"]
                   cmd = "cat /var/passgen_test/#{env}-#{folder}/sub_#{name}"
                   prev_value = on(host, cmd).stdout
                   expect(list_result).to match(/Current:  #{Regexp.escape(curr_value)}/m)
@@ -150,7 +154,7 @@ describe 'simp passgen modify existing passwords' do
                 "--length=#{options[:length]}"
               cmd += ' --complex_only' if options[:complex_only]
               set_result = on(host, cmd).stdout
-              new_password = set_result.match(/.*new password: (.*)/m)[1].chomp!.chomp!
+              new_password = set_result.match(/.*new password: (.*)/)[1]
               saved_latest_passwords[name] = new_password
 
               validate_password(new_password, options)
@@ -167,7 +171,7 @@ describe 'simp passgen modify existing passwords' do
          cmd = "simp passgen -e #{env} -s passgen_test_c0_8"
          set_result = on(host, cmd, { :pty => true, :stdin => stdin }).stdout
 
-         new_password = set_result.match(/.*new password: (.*)/m)[1].chomp!.chomp!
+         new_password = set_result.match(/.*new password: (.*)/)[1]
          expect(new_password).to eq('password')
          saved_latest_passwords['passgen_test_c0_8'] = 'password'
         end
@@ -209,7 +213,7 @@ describe 'simp passgen modify existing passwords' do
                "/var/passgen_test/#{env}-#{folder}/sub_passgen_test_c2_only"
               ].each do |file|
                 it "should update file #{file} with latest password" do
-                  name = File.basename(file)
+                  name = "#{folder}/#{File.basename(file)}"
                   curr_simp_passgen_value = saved_latest_passwords[name]
                   curr_test_value = on(host, "cat #{file}").stdout
                   expect(curr_test_value).to eq(curr_simp_passgen_value)
