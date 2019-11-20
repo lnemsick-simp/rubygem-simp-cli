@@ -6,17 +6,17 @@
   end
 -%>
 HOSTS:
-#  el6:
-#    roles:
-#      - server
-#      - default
-#      - master
-#      - client
-#    platform: el-6-x86_64
-#    box: centos/6
-#    hypervisor: <%= hypervisor %>
-#    vagrant_memsize: 4608
-#    vagrant_cpus: 2
+  el6:
+    roles:
+      - server
+      - default
+      - master
+      - client
+    platform: el-6-x86_64
+    box: centos/6
+    hypervisor: <%= hypervisor %>
+    vagrant_memsize: 4608
+    vagrant_cpus: 2
 
   el7:
     roles:

@@ -43,9 +43,10 @@ describe 'simp passgen create and remove passwords' do
             default_yaml_file = File.join( '/etc/puppetlabs/code/environments',
                env, 'data', 'default.yaml')
 
-            default_yaml = YAML.load( on(host, "cat #{default_yaml_file}").stdout )
-            default_yaml['passgen_test::extra_keys'] = new_names
-            create_remote_file(host, default_yaml_file, default_yaml)
+            hieradata = YAML.load( on(host, "cat #{default_yaml_file}").stdout )
+            hieradata['passgen_test::extra_keys'] = new_names
+            create_remote_file(host, default_yaml_file, hieradata.to_yaml)
+            on(host, "cat #{default_yaml_file}")
           end
 
           it 'should apply manifest to add extra persisted passwords' do

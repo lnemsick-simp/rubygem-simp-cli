@@ -5,10 +5,6 @@ require 'spec_helper_acceptance'
 saved_latest_passwords = {}
 
 def validate_password(password, options)
-if password.nil?
-require 'pry-byebug'
-binding.pry
-end
   expect(password.length).to eq(options[:length])
 
   default_chars = (("a".."z").to_a + ("A".."Z").to_a + ("0".."9").to_a).map do|x|
