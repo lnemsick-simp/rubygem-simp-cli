@@ -345,7 +345,7 @@ module Simp::Cli::Config
 # output StringIO, even though they appear in the console output, when
 # run manually.
 #      value = ask( "#{query_prompt.white.bold}: ",
-      value = ask( "<%= color('#{query_prompt}', WHITE, BOLD) %>: ",
+      value = ask( "<%= color('#{query_prompt.gsub("'","\\\\'")}', WHITE, BOLD) %>: ",
                   highline_question_type ) do |q|
         q.default = default_value unless default_value.to_s.empty?
 

@@ -149,7 +149,7 @@ module Simp::Cli::Config
           # use HighLine to read in the confirm password, but don't do any
           # validation, here
           logger.say "Please confirm the password:"
-          confirm_password = ask( "<%= color('Confirm #{query_prompt}', WHITE, BOLD) %>: ",
+          confirm_password = ask( "<%= color('Confirm #{query_prompt.gsub("'","\\\\'")}', WHITE, BOLD) %>: ",
                   highline_question_type ) do |q|
             q.echo = '*'
             q

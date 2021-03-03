@@ -30,6 +30,11 @@ module Simp::Cli::Config
 
           yaml_hash = YAML.load(IO.read(@file))
           if yaml_hash.key?(key)
+            # FIXME
+            # (1) This only replaces single line entries. Does not work
+            #     when value should be on multiple lines (array, hash)
+            # (2) This does not allow for merging of entries (e.g.
+            #     simp::classes array or sudo::user_specifications hash.
             replace_line(key)
           else
             add_yaml_entry(key)

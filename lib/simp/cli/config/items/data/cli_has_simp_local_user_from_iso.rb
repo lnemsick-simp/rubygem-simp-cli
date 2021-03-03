@@ -4,7 +4,7 @@ require 'etc'
 module Simp; end
 class Simp::Cli; end
 module Simp::Cli::Config
-  class Item::CliHasSimpLocalUser < YesNoItem
+  class Item::CliHasSimpLocalUserFromIso < YesNoItem
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
       @key         = 'cli::has_simp_local_user'
@@ -41,7 +41,6 @@ via the simp::server manifest, when SIMP is bootstrapped.}
         if iso_install?
           return 'yes'
         else
-          warn("'simp' user detected in non-ISO install. This user may not be set up to prevent lockout.")
           return 'no'
         end
       rescue ArgumentError => e

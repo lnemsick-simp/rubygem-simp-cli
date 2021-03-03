@@ -25,6 +25,11 @@ module Simp::Cli::Config
 
       if File.exists?(@file)
         info( "Adding #{@class_to_add} to the class list in #{fqdn}.yaml file", [:GREEN] )
+
+        # We are not using a YAML parser/formatter so that we can retain
+        # comments in the SIMP server YAML file. This string-based parsing
+        # is inherently fragile.
+
         yaml = IO.readlines(@file)
 
         classes_key_regex = Regexp.new(/^simp::server::classes\s*:/)
@@ -41,6 +46,8 @@ module Simp::Cli::Config
           yaml.each do |line|
             line.chomp!
             if line.match?(classes_key_regex)
+              #FIXME determine and use existing indentation instead of assuming
+              # a specific indentation
               f.puts line
               f.puts "  - '#{@class_to_add}'"
             else
