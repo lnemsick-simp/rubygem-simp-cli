@@ -20,11 +20,24 @@ module Simp::Cli::Config
       @username = get_item( 'cli::local_priv_user' ).value
       pwd_hash = get_item( 'cli::local_priv_user_password' ).value
 
-      #TODO Set the user's home dir?
-      cmd = "puppet resource user #{@username} password='#{pwd_hash}' ensure=present"
+      group_cmd = "puppet resource group #{@username} ensure=present"
+      result = Simp::Cli::Utils::show_wait_spinner {
+        execute(group_cmd)
+      }
+
+      home_dir = "/var/local/#{@username}"
+      user_cmd = [
+        "puppet resource user #{@username}",
+        'ensure=present',
+        "groups='#{@username}'",
+        "password='#{pwd_hash}'",
+        "home=#{home_dir}",
+        'manageHome=true',
+        'shell=/bin/bash'
+      ].join(' ')
 
       result = Simp::Cli::Utils::show_wait_spinner {
-        execute(cmd)
+        execute(user_cmd)
       }
 
       @applied_status = :succeeded if result

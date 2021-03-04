@@ -1,6 +1,5 @@
 require 'highline/import'
 require 'puppet'
-require 'yaml'
 require 'simp/cli/config/errors'
 require 'simp/cli/defaults'
 require 'simp/cli/exec_utils'
@@ -173,9 +172,8 @@ module Simp::Cli::Config
       # comment every line that describes the item:
       x =  x.each_line.map{ |y| "# #{y}" }.join
 
-      # add yaml (but stripped of frontmatter and first indent)
-      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
-      x += { @key => @value }.to_yaml.gsub(/^---\s*\n/m, '').gsub(/^  /, '' )
+      # add yaml snippet for just the key/value pair
+      x += pair_to_yaml_snippet(@key, @value)
       x += "\n"
 
       if @skip_yaml
@@ -183,6 +181,14 @@ module Simp::Cli::Config
       else
         x
       end
+    end
+
+#FIXME move to utils
+    def pair_to_yaml_snippet(key, value)
+      require 'yaml'
+
+      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
+      { key => value }.to_yaml.gsub(/^---\s*\n/m, '')
     end
 
     # print a pretty banner to describe an item

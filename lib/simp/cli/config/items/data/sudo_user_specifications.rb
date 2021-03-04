@@ -23,7 +23,10 @@ module Simp::Cli::Config
         EOM
       ).strip
 
-      @data_type = :server_hiera
+      # make sure this does not get persisted to the answers file,
+      # because we have no mechanism to validate it if the user
+      # customizes it there
+      @data_type = :internal
     end
 
     def get_recommended_value
@@ -43,6 +46,5 @@ module Simp::Cli::Config
     def query;                                     nil;  end
     def validate( x );                             true; end
     def print_summary;                             nil;  end
-    def to_yaml_s( include_auto_warning = false ); nil;  end
   end
 end
