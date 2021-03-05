@@ -87,19 +87,20 @@ describe Simp::Cli::Config::Item::AllowLocalPrivUserAction do
         ' could not find cli::network::hostname' )
     end
 
-=begin
-cli::local_priv_user
-pam::access::users
-sudo::user_specifications
-    it 'fails when simp_openldap::server::conf::rootpw item does not exist' do
-      @ci.config_items.delete('simp_openldap::server::conf::rootpw')
-      file = File.join(@files_dir, 'puppet.your.domain.yaml')
-      FileUtils.copy_file file, @host_file
-      expect{ @ci.apply }.to raise_error( Simp::Cli::Config::MissingItemError,
-        'Internal error: Simp::Cli::Config::Item::AllowLocalPrivUserAction' +
-        ' could not find simp_openldap::server::conf::rootpw' )
+   [
+     'pam::access::users',
+     'sudo::user_specifications'
+    ].each do |item_key|
+      it "fails when #{item_key} item does not exist" do
+        @ci.config_items = build_config_items(@fqdn, 'local_admin')
+        @ci.config_items.delete(item_key)
+        file = File.join(@files_dir, 'puppet.your.domain.yaml')
+        FileUtils.copy_file file, @host_file
+        expect{ @ci.apply }.to raise_error( Simp::Cli::Config::MissingItemError,
+          'Internal error: Simp::Cli::Config::Item::AllowLocalPrivUserAction' +
+          " could not find #{item_key}" )
+      end
     end
-=end
   end
 
   describe '#apply_summary' do
@@ -107,6 +108,14 @@ sudo::user_specifications
       @ci.config_items = build_config_items(@fqdn, 'local_admin')
       expect( @ci.apply_summary ).to eq(
         "Configuring ssh+sudo for local user 'local_admin' in SIMP server <host>.yaml unattempted")
+    end
+
+    it 'fails when cli::local_priv_user item does not exist' do
+      @ci.config_items = build_config_items(@fqdn, 'local_admin')
+      @ci.config_items.delete('cli::local_priv_user')
+      expect{ @ci.apply_summary }.to raise_error( Simp::Cli::Config::MissingItemError,
+        'Internal error: Simp::Cli::Config::Item::AllowLocalPrivUserAction' +
+        ' could not find cli::local_priv_user' )
     end
   end
 
