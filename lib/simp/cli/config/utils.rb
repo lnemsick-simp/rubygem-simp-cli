@@ -115,5 +115,12 @@ class Simp::Cli::Config::Utils
       salt = decoded[20..-1]
       encrypt_openldap_hash(password, salt) == ssha
     end
+
+    def pair_to_yaml_snippet(key, value)
+      require 'yaml'
+
+      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
+      { key => value }.to_yaml.gsub(/^---\s*\n/m, '')
+    end
   end
 end

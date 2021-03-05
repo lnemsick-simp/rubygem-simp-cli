@@ -10,7 +10,9 @@ puppetdb::globals::version: 'latest'
 puppetdb::master::config::restart_puppet: false
 simp::server::allow_simp_user: true
 
-classes :
-  - 'simp::server::yum'
+simp::classes:
   - 'simp::server'
+
+simp::server::classes:
+  - 'simp::server::yum'
   - 'simp::puppetdb'

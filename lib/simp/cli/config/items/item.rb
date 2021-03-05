@@ -1,6 +1,7 @@
 require 'highline/import'
 require 'puppet'
 require 'simp/cli/config/errors'
+require 'simp/cli/config/utils'
 require 'simp/cli/defaults'
 require 'simp/cli/exec_utils'
 require 'simp/cli/logging'
@@ -170,10 +171,10 @@ module Simp::Cli::Config
       end
 
       # comment every line that describes the item:
-      x =  x.each_line.map{ |y| "# #{y}" }.join
+      x =  x.each_line.map{ |y| y.strip.empty? ? "#\n" : "# #{y}" }.join
 
       # add yaml snippet for just the key/value pair
-      x += pair_to_yaml_snippet(@key, @value)
+      x += Simp::Cli::Config::Utils.pair_to_yaml_snippet(@key, @value)
       x += "\n"
 
       if @skip_yaml
@@ -181,14 +182,6 @@ module Simp::Cli::Config
       else
         x
       end
-    end
-
-#FIXME move to utils
-    def pair_to_yaml_snippet(key, value)
-      require 'yaml'
-
-      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
-      { key => value }.to_yaml.gsub(/^---\s*\n/m, '')
     end
 
     # print a pretty banner to describe an item
