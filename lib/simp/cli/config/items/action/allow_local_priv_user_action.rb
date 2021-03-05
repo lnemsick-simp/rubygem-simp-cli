@@ -19,6 +19,8 @@ module Simp::Cli::Config
       # override with a shorter message
       @description = 'Allow ssh+sudo access to local user in SIMP server <host>.yaml'
 
+      @merge_value = true  # both Items have Hash values and we want to add to
+                           # existing Hash entries, not replace
     end
 
     # override with a shorter message

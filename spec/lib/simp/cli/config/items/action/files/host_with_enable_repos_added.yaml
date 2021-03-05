@@ -17,7 +17,6 @@ simp::yum::repo::local_os_updates::enable_repo: false
 # SIMP dependency YUM repository.
 simp::yum::repo::local_simp::enable_repo: false
 
-
 simp::classes:
 - simp::server
 

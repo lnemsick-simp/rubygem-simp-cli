@@ -18,7 +18,6 @@ puppetdb::master::config::puppetdb_server: puppet.test.local
 # The PuppetDB server port number.
 puppetdb::master::config::puppetdb_port: 8139
 
-
 simp::classes:
 - simp::server
 

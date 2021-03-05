@@ -17,7 +17,6 @@ puppetdb::master::config::restart_puppet: false
 # when this user has been created.
 simp::server::allow_simp_user: false
 
-
 simp::classes:
 - simp::server
 

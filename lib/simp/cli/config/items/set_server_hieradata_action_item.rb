@@ -118,10 +118,11 @@ module Simp::Cli::Config
         yaml_plus.each do |key, info|
           if !entry_added && key.match?(classes_key_regex)
             file.puts
-            file.puts(full_yaml_string)
+            file.puts(full_yaml_string.strip)
             entry_added = true
           end
-          file.puts(info[:comments].join("\n")) unless info[:comments].empty?
+          # use write + \n to eliminate puts dedup of \n
+          file.write(info[:comments].join("\n") +  "\n") unless info[:comments].empty?
           file.puts(Simp::Cli::Config::Utils.pair_to_yaml_snippet(key, info[:value]))
         end
 
@@ -147,7 +148,7 @@ module Simp::Cli::Config
         raise InternalError, err_msg
       end
 
-      unless (old_value.class.is_a?(Array) || old_value.class.is_a?(Hash))
+      unless (old_value.is_a?(Array) || old_value.is_a?(Hash))
         err_msg = "Unable to merge values for #{item.key}:\n" +
           "unsupported type #{old_value.class}"
         raise InternalError, err_msg
@@ -155,7 +156,7 @@ module Simp::Cli::Config
 
       return unless merge_required?(old_value, new_value)
 
-      info( "Merging new data into #{hiera_key} in #{File.basename(@file)}" )
+      info( "Merging new data into #{item.key} in #{File.basename(@file)}" )
 
       merged_value = nil
       if old_value.is_a?(Array)
@@ -205,7 +206,8 @@ module Simp::Cli::Config
         file.puts(initial_comment_block.join("\n")) unless initial_comment_block.empty?
         file.puts('---')
         yaml_plus.each do |key, info|
-          file.puts(info[:comments].join("\n")) unless info[:comments].empty?
+          # use write + \n to eliminate puts dedup of \n
+          file.write(info[:comments].join("\n") +  "\n") unless info[:comments].empty?
           yaml_str = ''
           if key == name
             yaml_str = Simp::Cli::Config::Utils.pair_to_yaml_snippet(key, value)

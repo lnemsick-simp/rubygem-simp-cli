@@ -10,12 +10,27 @@ puppetdb::globals::version: latest
 puppetdb::master::config::restart_puppet: false
 simp::server::allow_simp_user: true
 
-# === simp_openldap::server::conf::rootpw ===
-# The salted LDAP Root password hash.
+# === pam::access::users ===
+# PAM remote access rules.
 #
-# When set via 'simp config', this password hash is generated from
-# the password entered on the command line.
-simp_openldap::server::conf::rootpw: "{SSHA}deadbeefDEADBEEFdeadbeefDEADBEEF"
+# Users allowed to ssh to the server and their corresponding origin
+# restrictions. See `pam::access` Puppet module class documentation.
+pam::access::users:
+  local_admin:
+    origins:
+    - ALL
+
+# === sudo::user_specifications ===
+# `sudo` user rules.
+#
+# See `sudo::user_specifications` Puppet module class documentation.
+sudo::user_specifications:
+  local_admin_su:
+    user_list:
+    - local_admin
+    cmnd:
+    - ALL
+    passwd: false
 
 simp::classes:
 - simp::server
