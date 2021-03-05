@@ -59,7 +59,6 @@ module Simp::Cli::Config
 
     def validate( x )
       acceptable_values.include?( x )
-true
     end
 
     def not_valid_message
