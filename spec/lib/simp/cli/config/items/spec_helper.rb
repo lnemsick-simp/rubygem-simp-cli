@@ -66,3 +66,7 @@ class TestActionItem < Simp::Cli::Config::ActionItem
   attr_accessor :key, :description, :data_type
 end
 
+class TestClassItem < Simp::Cli::Config::ClassItem
+  attr_accessor :key, :description, :data_type
+end
+

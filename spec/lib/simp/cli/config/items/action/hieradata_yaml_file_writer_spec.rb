@@ -18,6 +18,7 @@ describe Simp::Cli::Config::Item::HieradataYAMLFileWriter do
 
   describe '#print_hieradata_yaml' do
     before :each do
+      # first 2 items will have the default data_type of :global_hiera
       ci                = TestItem.new(@puppet_env_info)
       ci.key            = 'item'
       ci.value          = 'foo'
@@ -37,10 +38,22 @@ describe Simp::Cli::Config::Item::HieradataYAMLFileWriter do
       ci.description    = 'A simple yes/no item'
       list[ci.key]      = ci
 
+      # ActionItems have the data_type of :none
       ci                = TestActionItem.new(@puppet_env_info)
       ci.key            = 'action'
       ci.value          = 'unused'
       ci.description    = 'A simple action item which should not have yaml output'
+      list[ci.key]      = ci
+
+      # ClassItems have the data_type of :global_class
+      ci                = TestClassItem.new(@puppet_env_info)
+      ci.key            = 'some::class::one'
+      ci.description    = 'A class item whose key should be added to simp::classes'
+      list[ci.key]      = ci
+
+      ci                = TestClassItem.new(@puppet_env_info)
+      ci.key            = 'some::class::two'
+      ci.description    = 'A class item whose key should be added to simp::classes'
       list[ci.key]      = ci
 
       @simple_item_list = list
@@ -59,7 +72,9 @@ describe Simp::Cli::Config::Item::HieradataYAMLFileWriter do
       expect( y ).not_to be_empty
       expect( y['item'] ).to  eq('foo')
       expect( y['list'] ).to  eq(['one','two','three'])
-      expect( y['yesno'] ).to be_nil
+      expect( y.key?('yesno') ).to be false
+      expect( y.key?('action') ).to be false
+      expect( y['simp::classes'] ).to  eq(['some::class::one','some::class::two'])
     end
   end
 
