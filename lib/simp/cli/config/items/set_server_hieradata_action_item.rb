@@ -31,6 +31,7 @@ module Simp::Cli::Config
       successes = 0
       if File.exists?(@file)
         @hiera_to_add.each do |key|
+          info( "Processing #{key} in #{File.basename(@file)}" )
           # reread info because we are writing out to file with every key
           file_info = load_yaml_with_comment_blocks(@file)
           item = get_valid_item(key)
@@ -39,7 +40,9 @@ module Simp::Cli::Config
             change = merge_or_replace_yaml_tag(item.key, item.value, file_info,
               @merge_value)
 
-            unless change == :none
+            if change == :none
+              info( "No change to #{item.key} required in #{File.basename(@file)}" )
+            else
               info( "#{item.key} #{change}d in #{File.basename(@file)}" )
             end
           else

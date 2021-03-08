@@ -200,19 +200,18 @@ module Simp::Cli::Config
       if old_value.class != new_value.class
         err_msg = "Unable to merge values for #{:key}:\n" +
           "type mismatch - old type: #{old_value.class}, new type:#{new_value.class}"
-#FIXME should this be some other error?
-        raise InternalError, err_msg
+        raise err_msg
       end
 
       unless (new_value.is_a?(Array) || new_value.is_a?(Hash))
         err_msg = "Unable to merge values for #{key}:\n" +
           "unsupported type #{new_value.class}"
-        raise InternalError, err_msg
+        raise err_msg
       end
 
       merged_value = nil
       if new_value.is_a?(Array)
-        merged_value = new_value + old_value
+        merged_value = (new_value + old_value).uniq
       else
         merged_value = old_value.merge(new_value)
       end

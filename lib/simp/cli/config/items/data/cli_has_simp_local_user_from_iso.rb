@@ -7,7 +7,7 @@ module Simp::Cli::Config
   class Item::CliHasSimpLocalUserFromIso < YesNoItem
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
-      @key         = 'cli::has_simp_local_user'
+      @key         = 'cli::has_simp_local_user_from_iso'
       @description = %Q{Whether the server has the local 'simp' user created by
 an ISO install.
 

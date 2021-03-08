@@ -1,5 +1,4 @@
 require 'simp/cli/config/items'
-require 'simp/cli/config/utils'
 require 'simp/cli/version'
 require 'fileutils'
 
@@ -50,8 +49,7 @@ module Simp::Cli::Config
 
       unless global_classes.empty?
         iostream.puts
-        iostream.puts(Simp::Cli::Config::Utils.pair_to_yaml_snippet(
-          'simp::classes', global_classes))
+        iostream.puts(pair_to_yaml_tag('simp::classes', global_classes))
       end
     end
 

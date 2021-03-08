@@ -1,13 +1,13 @@
-require 'simp/cli/config/items/data/cli_has_simp_local_user'
+require 'simp/cli/config/items/data/cli_has_simp_local_user_from_iso'
 require 'fileutils'
 require 'rspec/its'
 require_relative '../spec_helper'
 
 EtcPwnamStruct = Struct.new(:name, :passwd, :uid, :gid, :gecos, :dir, :shell)
 
-describe Simp::Cli::Config::Item::CliHasSimpLocalUser do
+describe Simp::Cli::Config::Item::CliHasSimpLocalUserFromIso do
   before :each do
-    @ci = Simp::Cli::Config::Item::CliHasSimpLocalUser.new
+    @ci = Simp::Cli::Config::Item::CliHasSimpLocalUserFromIso.new
   end
 
   context '#recommended_value' do

@@ -18,7 +18,7 @@ module Simp::Cli::Config
 
     PAUSE_SECONDS = 2 # number of seconds to pause processing to allow
                       # an important logged message to be highlighted
-                      # on the scree
+                      # on the screen
 
     # This constant show a stock SIMP environment set up and documents
     # the minimal Puppet env hash required to support all Items
