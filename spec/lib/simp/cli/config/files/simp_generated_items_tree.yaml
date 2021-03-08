@@ -126,11 +126,31 @@
 
 # ==== User actions ====
 - UseraddSecuretty
-- CliHasSimpLocalUser         SKIPQUERY SILENT: # don't ever prompt, just discover current value
+- CliHasSimpLocalUserFromIso          SKIPQUERY SILENT: # don't ever prompt, just discover current value
    false:
-    - SimpServerAllowSimpUser SKIPQUERY SILENT # default is correct
-    - DisallowSimpUserAction  # ISO-provided user does not exist, so don't allow!
-    - WarnLockoutRiskAction
+    - CliEnsurePrivLocalUser:
+       true:
+        - CliLocalPrivUser
+        - CliLocalPrivUserExists      SKIPQUERY SILENT:  # don't ever prompt, just discover current value
+           true:
+            - CliLocalPrivUserHasAuthorizedSshKeys SKIPQUERY SILENT:  # don't ever prompt, just discover current value
+               true:
+                - CopyAuthorizedKeysAction
+           false:
+            - CliLocalPrivUserPassword
+            - CreateLocalUserAction
+        - CliIsLocalPrivUserSimp      SKIPQUERY SILENT:  # don't ever prompt, just discover current value
+           false:
+            - SimpServerAllowSimpUser SKIPQUERY SILENT # default disables
+            - DisallowSimpUserAction  # ISO-provided user does not exist, so don't allow!
+            - PamAccessUsers          SKIPQUERY SILENT #default uses CliLocalPrivUser
+            - SudoUserSpecifications  SKIPQUERY SILENT #default uses CliLocalPrivUser
+            - AllowLocalPrivUserAction
+        - WarnVerifyUserAccessAfterBootstrapAction
+       false:
+        - SimpServerAllowSimpUser     SKIPQUERY SILENT # default disables
+        - DisallowSimpUserAction      # ISO-provided user does not exist, so don't allow!
+        - WarnLockoutRiskAction
 
 # ==== simp-scenario-specific configuration ====
 - SvckillMode
