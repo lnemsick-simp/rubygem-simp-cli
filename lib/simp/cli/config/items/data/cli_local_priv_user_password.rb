@@ -1,4 +1,5 @@
 require_relative '../password_item'
+require_relative 'cli_local_priv_user'
 require_relative '../../utils'
 
 module Simp; end

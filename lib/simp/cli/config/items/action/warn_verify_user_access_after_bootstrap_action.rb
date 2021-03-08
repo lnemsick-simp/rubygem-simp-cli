@@ -1,20 +1,17 @@
 require_relative '../../../defaults'
 require_relative '../action_item'
-require 'fileutils'
+require_relative '../data/cli_local_priv_user'
 
 module Simp; end
 class Simp::Cli; end
 module Simp::Cli::Config
   class Item::WarnVerifyUserAccessAfterBootstrapAction < ActionItem
-    attr_accessor :warning_file
-    attr_reader :warning_message
 
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
       @key             = 'login::verify::access'
       @description     = 'Verify access after `simp bootstrap`'
       @category        = :sanity_check
-      @warning_file    = Simp::Cli::BOOTSTRAP_START_LOCK_FILE
     end
 
     def apply
@@ -27,7 +24,6 @@ module Simp::Cli::Config
         **After** `simp bootstrap` but **before** you reboot the server or
         close the terminal, it is imperative that you verify user '#{username}'
         access as follows:
-
 
         Using a NEW SSH SESSION OR TERMINAL (do NOT close your working session)
 

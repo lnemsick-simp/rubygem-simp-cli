@@ -1,7 +1,5 @@
 require_relative '../action_item'
-require_relative '../data/cli_network_dhcp'
-require_relative '../data/cli_network_hostname'
-require_relative '../data/cli_network_interface'
+require_relative '../data/cli_local_priv_user'
 require 'etc'
 require 'fileutils'
 

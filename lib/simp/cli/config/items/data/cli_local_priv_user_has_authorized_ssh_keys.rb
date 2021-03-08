@@ -1,4 +1,5 @@
 require_relative '../yes_no_item'
+require_relative 'cli_local_priv_user'
 require 'etc'
 
 module Simp; end

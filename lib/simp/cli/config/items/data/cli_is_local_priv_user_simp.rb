@@ -1,5 +1,5 @@
 require_relative '../yes_no_item'
-require 'etc'
+require_relative 'cli_local_priv_user'
 
 module Simp; end
 class Simp::Cli; end
