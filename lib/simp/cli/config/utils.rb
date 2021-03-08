@@ -115,6 +115,5 @@ class Simp::Cli::Config::Utils
       salt = decoded[20..-1]
       encrypt_openldap_hash(password, salt) == ssha
     end
-
   end
 end
