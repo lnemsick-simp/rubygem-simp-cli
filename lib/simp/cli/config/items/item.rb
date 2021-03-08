@@ -1,7 +1,7 @@
 require 'highline/import'
 require 'puppet'
 require 'simp/cli/config/errors'
-require 'simp/cli/config/utils'
+require 'simp/cli/config/yaml_utils'
 require 'simp/cli/defaults'
 require 'simp/cli/exec_utils'
 require 'simp/cli/logging'
@@ -14,10 +14,11 @@ module Simp::Cli::Config
   class Item
 
     include Simp::Cli::Logging
+    include Simp::Cli::Config::YamlUtils
 
     PAUSE_SECONDS = 2 # number of seconds to pause processing to allow
                       # an important logged message to be highlighted
-                      # on the screen
+                      # on the scree
 
     # This constant show a stock SIMP environment set up and documents
     # the minimal Puppet env hash required to support all Items
@@ -173,8 +174,8 @@ module Simp::Cli::Config
       # comment every line that describes the item:
       x =  x.each_line.map{ |y| y.strip.empty? ? "#\n" : "# #{y}" }.join
 
-      # add yaml snippet for just the key/value pair
-      x += Simp::Cli::Config::Utils.pair_to_yaml_snippet(@key, @value)
+      # add yaml tag directive for just the <key,value> pair
+      x += pair_to_yaml_tag(@key, @value)
       x += "\n"
 
       if @skip_yaml
