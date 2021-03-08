@@ -17,7 +17,8 @@ module Simp::Cli::Config
     end
 
     def get_recommended_value
-      'simp'
+      # intentionally differentiate from the user created by the SIMP ISO
+      'simpadmin'
     end
 
     def validate( x )

@@ -19,7 +19,7 @@ module Simp::Cli::Config
       @description = ( <<~EOM
         `sudo` user rules.
 
-        See `sudo::user_specifications` Puppet module class documentation.
+        See `sudo` Puppet module class documentation.
         EOM
       ).strip
 

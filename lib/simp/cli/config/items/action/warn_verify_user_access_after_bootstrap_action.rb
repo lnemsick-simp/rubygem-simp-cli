@@ -17,6 +17,7 @@ module Simp::Cli::Config
     def apply
       username = get_item('cli::local_priv_user').value
       warning_message = <<~DOC
+
         #########################################################################
         #                                WARNING                                #
         #########################################################################
