@@ -9,7 +9,7 @@ describe Simp::Cli::Config::Item::SelinuxLoginResources do
   end
 
   describe '#get_recommended_value' do
-    it 'returns value based on cli::local_priv_user when cli::local_priv_user exists' do
+    it 'returns value based on cli::local_priv_user when cli::local_priv_user Item exists' do
       item = Simp::Cli::Config::Item::CliLocalPrivUser.new
       item.value = 'local_admin'
       @ci.config_items[item.key] = item
@@ -23,7 +23,7 @@ describe Simp::Cli::Config::Item::SelinuxLoginResources do
       expect(@ci.get_recommended_value).to eq(expected)
     end
 
-    it 'fails when cli::local_priv_user does not exist' do
+    it 'fails when cli::local_priv_user Item does not exist' do
       expect { @ci.get_recommended_value }.to raise_error(Simp::Cli::Config::InternalError)
     end
   end

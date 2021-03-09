@@ -22,19 +22,27 @@ module Simp::Cli::Config
 
       info = Etc.getpwnam(@username)
       authorized_keys_file = File.join(info.dir, '.ssh', 'authorized_keys')
-      dest_dir = '/etc/ssh/local_keys'
-      dest = "/etc/ssh/local_keys/#{@username}"
-      info( "Copying authorized ssh keys for #{@username} to SIMP-managed #{dest}" )
-
-      begin
-        # dest directory may not exist yet
-        FileUtils.mkdir_p(dest_dir)
-        FileUtils.chmod(0755, dest_dir)
-        FileUtils.cp(authorized_keys_file, dest)
-        FileUtils.chmod(0644, dest)
-        @applied_status = :succeeded
-      rescue Exception => e
-        error("Copy of #{authorized_keys_file} to #{dest} failed:\n#{e}")
+      if !File.exists?(authorized_keys_file)
+        # In the Item decision tree, shouldn't get here unless the file is
+        # removed out from under us. However, the absense of the authorized
+        # keys file doesn't constitute an error. It simply means the copy is
+        # no longer necessary.
+        info("#{authorized_keys_file} does not exist")
+        @applied_status = :unnecessary
+      else
+        dest_dir = '/etc/ssh/local_keys'
+        dest = "/etc/ssh/local_keys/#{@username}"
+        info( "Copying authorized ssh keys for #{@username} to SIMP-managed #{dest}" )
+        begin
+          # dest directory may not exist yet
+          FileUtils.mkdir_p(dest_dir)
+          FileUtils.chmod(0755, dest_dir)
+          FileUtils.cp(authorized_keys_file, dest)
+          FileUtils.chmod(0644, dest)
+          @applied_status = :succeeded
+        rescue Exception => e
+          error("Copy of #{authorized_keys_file} to #{dest} failed:\n#{e}")
+        end
       end
     end
 
