@@ -1,7 +1,5 @@
 require_relative '../item'
 require_relative 'cli_local_priv_user'
-require_relative 'cli_local_priv_user_exists'
-require_relative 'cli_local_priv_user_has_authorized_ssh_keys'
 
 module Simp; end
 class Simp::Cli; end
@@ -14,11 +12,11 @@ module Simp::Cli::Config
   # JSON strings) because the query and validation complexity of a HashItem is
   # not warranted, yet.  In other words, we have no reason to make the user
   # enter Hash values as of yet.
-  class Item::SudoUserSpecifications < Item
+  class Item::SelinuxLoginResources < Item
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
-      @key         = 'sudo::user_specifications'
-      @description = '`sudo` user rules.'
+      @key         = 'selinux::login_resources'
+      @description = 'SELinux login mapping configuration.'
 
       # make sure this does not get persisted to the answers file,
       # because we have no mechanism to validate it if the user
@@ -28,21 +26,11 @@ module Simp::Cli::Config
 
     def get_recommended_value
       username = get_item( 'cli::local_priv_user' ).value
-      password_required = true
-      if ( get_item( 'cli::local_priv_user_exists' ).value &&
-         get_item( 'cli::local_priv_user_has_authorized_ssh_keys' ).value )
-
-        # May be a cloud user who does not have a password, so doesn't
-        # make sense for sudo to prompt for a password
-        password_required = false
-      end
 
       {
-        "#{username}_su" => {
-         'user_list' => [ username ],
-         'cmnd'      => [ 'ALL' ],
-         'passwd'    => password_required,
-         'options'   =>  { 'role'=> 'unconfined_r' }
+        username => {
+         'seuser'    => 'staff_u',
+         'mls_range' => 's0-s0:c0.c1023'
         }
       }
     end

@@ -1,6 +1,7 @@
 require_relative '../set_server_hieradata_action_item'
 require_relative '../data/cli_local_priv_user'
 require_relative '../data/pam_access_users'
+require_relative '../data/selinux_login_resources'
 require_relative '../data/sudo_user_specifications'
 
 module Simp; end
@@ -11,6 +12,7 @@ module Simp::Cli::Config
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       @hiera_to_add = [
         'pam::access::users',
+        'selinux::login_resources',
         'sudo::user_specifications'
       ]
       super(puppet_env_info)
@@ -19,7 +21,7 @@ module Simp::Cli::Config
       # override with a shorter message
       @description = 'Allow ssh+sudo access to local user in SIMP server <host>.yaml'
 
-      @merge_value = true  # both Items have Hash values and we want to add to
+      @merge_value = true  # all Items have Hash values and we want to add to
                            # existing Hash entries, not replace
     end
 

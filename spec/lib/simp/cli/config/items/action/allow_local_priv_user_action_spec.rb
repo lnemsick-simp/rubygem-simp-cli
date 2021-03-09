@@ -12,7 +12,20 @@ describe Simp::Cli::Config::Item::AllowLocalPrivUserAction do
     item.value = local_priv_user
     config_items[item.key] = item
 
+    item = Simp::Cli::Config::Item::CliLocalPrivUserExists.new(@puppet_env_info)
+    item.value = true
+    config_items[item.key] = item
+
+    item = Simp::Cli::Config::Item::CliLocalPrivUserHasAuthorizedSshKeys.new(@puppet_env_info)
+    item.value = true
+    config_items[item.key] = item
+
     item = Simp::Cli::Config::Item::PamAccessUsers.new(@puppet_env_info)
+    item.config_items = config_items
+    item.value = item.get_recommended_value
+    config_items[item.key] = item
+
+    item = Simp::Cli::Config::Item::SelinuxLoginResources.new(@puppet_env_info)
     item.config_items = config_items
     item.value = item.get_recommended_value
     config_items[item.key] = item
@@ -89,6 +102,7 @@ describe Simp::Cli::Config::Item::AllowLocalPrivUserAction do
 
    [
      'pam::access::users',
+     'selinux::login_resources',
      'sudo::user_specifications'
     ].each do |item_key|
       it "fails when #{item_key} item does not exist" do

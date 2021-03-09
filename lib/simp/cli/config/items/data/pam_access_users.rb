@@ -20,7 +20,7 @@ module Simp::Cli::Config
         PAM remote access rules.
 
         Users allowed to ssh to the server and their corresponding origin
-        restrictions. See `pam::access` Puppet module class documentation.
+        restrictions.
         EOM
       ).strip
 

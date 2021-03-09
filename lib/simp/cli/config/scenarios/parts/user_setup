@@ -27,6 +27,7 @@
         - DisallowSimpUserAction  # ISO-provided user does not exist, so don't allow!
 
         - PamAccessUsers          SKIPQUERY SILENT #default uses CliLocalPrivUser
+        - SelinuxLoginResources   SKIPQUERY SILENT #default uses CliLocalPrivUser
         - SudoUserSpecifications  SKIPQUERY SILENT #default uses CliLocalPrivUser
         - AllowLocalPrivUserAction
         - WarnVerifyUserAccessAfterBootstrapAction

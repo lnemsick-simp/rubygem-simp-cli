@@ -14,16 +14,21 @@ simp::server::allow_simp_user: true
 # PAM remote access rules.
 #
 # Users allowed to ssh to the server and their corresponding origin
-# restrictions. See `pam::access` Puppet module class documentation.
+# restrictions.
 pam::access::users:
   local_admin:
     origins:
     - ALL
 
+# === selinux::login_resources ===
+# SELinux login mapping configuration.
+selinux::login_resources:
+  local_admin:
+    seuser: staff_u
+    mls_range: s0-s0:c0.c1023
+
 # === sudo::user_specifications ===
 # `sudo` user rules.
-#
-# See `sudo::user_specifications` Puppet module class documentation.
 sudo::user_specifications:
   local_admin_su:
     user_list:
@@ -31,6 +36,8 @@ sudo::user_specifications:
     cmnd:
     - ALL
     passwd: false
+    options:
+      role: unconfined_r
 
 simp::classes:
 - simp::server
