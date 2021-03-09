@@ -126,7 +126,7 @@ EOM
 %changelog
 * Fri Mar 05 2021 Liz Nemsick <lnemsick.simp@gmail.com> - 6.2.0
 - simp config changes:
-  - Added option to configure a local user with su+ssh privileges
+  - Added option to configure a local user with ssh and sudo privileges
     to prevent server lockout, when SIMP is not installed from ISO.
     - Specified local user will be created if not already present.
 

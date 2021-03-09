@@ -230,8 +230,8 @@ module Simp::Cli::Config
         merge_required = !( (new_value & old_value) == new_value)
       elsif old_value.is_a?(Hash)
         if (new_value.keys & old_value.keys) == new_value.keys
-          new_hash.each do |key,value|
-            if old_hash[key] != value
+          new_value.each do |key,value|
+            if old_value[key] != value
               merge_required = true
               break
             end

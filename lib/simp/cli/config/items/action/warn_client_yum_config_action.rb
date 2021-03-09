@@ -29,7 +29,7 @@ DOC
 
     def apply_summary
       if @applied_status == :deferred
-         extra = ":\n\t#{@warning_message_brief}"
+         extra = ":\n  #{@warning_message_brief}"
       else
         extra = ''
       end

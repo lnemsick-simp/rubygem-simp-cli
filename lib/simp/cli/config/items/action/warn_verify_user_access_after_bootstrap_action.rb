@@ -50,7 +50,7 @@ module Simp::Cli::Config
       username = get_item('cli::local_priv_user').value
       warning_message_brief = "'#{username}' access configuration requires manual verification"
       if @applied_status == :deferred
-         extra = ":\n\t#{warning_message_brief}"
+         extra = ":\n  #{warning_message_brief}"
       else
         extra = ''
       end

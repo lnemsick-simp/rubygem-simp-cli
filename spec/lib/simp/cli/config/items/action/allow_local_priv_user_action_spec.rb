@@ -121,7 +121,7 @@ describe Simp::Cli::Config::Item::AllowLocalPrivUserAction do
     it 'reports unattempted status when #apply not called' do
       @ci.config_items = build_config_items(@fqdn, 'local_admin')
       expect( @ci.apply_summary ).to eq(
-        "Configuring ssh+sudo for local user 'local_admin' in SIMP server <host>.yaml unattempted")
+        "Configuring ssh & sudo for local user 'local_admin' in SIMP server <host>.yaml unattempted")
     end
 
     it 'fails when cli::local_priv_user item does not exist' do
