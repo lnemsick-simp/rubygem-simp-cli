@@ -39,10 +39,10 @@ module Simp::Cli::Config
 
       {
         "#{username}_su" => {
-         'user_list' => [ username ],
-         'cmnd'      => [ 'ALL' ],
-         'passwd'    => password_required,
-         'options'   =>  { 'role'=> 'unconfined_r' }
+          'user_list' => [ username ],
+          'cmnd'      => [ 'ALL' ],
+          'passwd'    => password_required,
+          'options'   =>  { 'role' => 'unconfined_r' }
         }
       }
     end
