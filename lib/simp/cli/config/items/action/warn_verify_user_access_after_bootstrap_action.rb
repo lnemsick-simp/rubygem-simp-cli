@@ -19,7 +19,7 @@ module Simp::Cli::Config
       warning_message = <<~DOC
 
         #########################################################################
-        #                                WARNING                                #
+        #                            CRITICAL WARNING                           #
         #########################################################################
 
         **After** `simp bootstrap` but **before** you reboot the server or
@@ -42,7 +42,7 @@ module Simp::Cli::Config
       DOC
 
       @applied_status = :deferred
-      warn( warning_message.strip, [:YELLOW] )
+      warn( warning_message.yellow )
       pause(:warn, 6)
     end
 

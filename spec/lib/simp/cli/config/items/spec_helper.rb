@@ -1,4 +1,5 @@
 require 'simp/cli/config/items/action_item'
+require 'simp/cli/config/items/class_item'
 require 'simp/cli/config/items/list_item'
 require 'simp/cli/config/items/yes_no_item'
 

@@ -87,7 +87,7 @@ class Simp::Cli::Commands::Bootstrap < Simp::Cli::Commands::Command
     execute('puppetserver reload')
 
     # SIMP is not single-run idempotent.  Until it is, run puppet multiple times.
-    num_runs = 4
+    num_runs = 5
     info("Running puppet agent without tags #{num_runs} times...", 'cyan')
     pupcmd = 'puppet agent --onetime --no-daemonize --no-show_diff --verbose --no-splay' +
       " --environment=#{Simp::Cli::BOOTSTRAP_PUPPET_ENV}" +

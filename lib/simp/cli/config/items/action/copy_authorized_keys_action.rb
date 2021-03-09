@@ -10,7 +10,7 @@ module Simp::Cli::Config
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
       @key               = 'copy::authorized_ssh_keys'
-      @description       = 'Copy ssh authorized keys'
+      @description       = 'Copy local privileged user ssh authorized keys to managed dir'
       @category          = :system
       @die_on_apply_fail = true
       @username          = nil
@@ -39,7 +39,7 @@ module Simp::Cli::Config
     end
 
     def apply_summary
-      "Copying ssh authorized keys of local user#{@username ? " #{@username}" : ''} #{@applied_status}"
+      "Copy of user#{@username ? " '#{@username}'" : ''} ssh authorized keys to /etc/ssh/local_keys/ #{@applied_status}"
     end
   end
 end

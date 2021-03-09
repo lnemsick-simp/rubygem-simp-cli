@@ -18,6 +18,9 @@ module Simp::Cli::Config
 
           Enter 'yes' if want to configure a local user to have `sudo` and `ssh`
           access after bootstrap.
+
+          * You will get to select the local user to configure.
+          * The local user will be created for you if it does not already exist.
         EOM
       ).strip
 
