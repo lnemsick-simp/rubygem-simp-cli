@@ -9,9 +9,9 @@ module Simp::Cli::Config
 
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
-      @key             = 'login::verify::access'
-      @description     = 'Verify access after `simp bootstrap`'
-      @category        = :sanity_check
+      @key         = 'login::verify::access'
+      @description = 'Verify access after `simp bootstrap`'
+      @category    = :sanity_check
     end
 
     def apply
