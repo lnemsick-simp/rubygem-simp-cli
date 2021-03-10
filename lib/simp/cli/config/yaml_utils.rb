@@ -95,7 +95,7 @@ module Simp::Cli::Config
             comment_block << line.strip
           end
         else
-          comment_block << line
+          comment_block << line.strip
         end
       end
 

@@ -96,19 +96,91 @@ describe 'Simp::Cli::Config::YamlUtils API' do
   describe '#load_yaml_with_comment_blocks' do
     it 'should load YAML and comment blocks before primary keys' do
       file = File.join(@files_dir, 'yaml_with_comments.yaml')
-      FileUtils.copy_file file, @test_file
+      result = @tester.load_yaml_with_comment_blocks(file)
+      expected = {
+        :filename => file,
+        :preamble => ['# YAML example to exercise Simp::Cli::Config::YamlUtils'],
+        :content => {
+          'simp_apache::conf::ssl::trusted_nets' => {
+            :comments => ['# simp_apache::conf::ssl::trusted_nets description' ],
+            :value    => "%{alias('simp_options::trusted_nets')}"
+          },
+          'simp::yum::repo::local_os_updates::enable_repo' => {
+            :comments => [
+              '',
+              '# uncomment out to enable',
+              "#simp_apache::ssl::sslverifyclient: 'none'",
+              '',
+              '# unnecessary quotes around the key'
+            ],
+            :value    => false
+          },
+          'simp::yum::repo::local_simp::enable_repo' => {
+            :comments => [],
+            :value    => false
+          },
+          'pam::access::users' => {
+            :comments => [
+              '',
+              '# complex hash with unnecessary quotes around one of the values',
+            ],
+            :value   => {
+              'local_admin1' => {
+                'origins' => [ 'ALL' ]
+              },
+              'local_admin2' => {
+                'origins' => [ 'ALL' ]
+              }
+            }
+          },
+          'simp::classes' => {
+            :comments => [
+              '',
+              '# array with unnecessary quotes around one of the values'
+            ],
+            :value   => ['simp::server','simp::server::ldap']
+          },
+          'simp::server::classes' => {
+            :comments => [ '' ],
+            :value   => ['simp::puppetdb']
+          }
+        }
+      }
+
+      expect( result ).to eq(expected)
     end
   end
 
   describe '#add_yaml_tag_directive' do
-=begin
-      file = File.join(@files_dir, 'puppet.your.domain.yaml')
-      FileUtils.copy_file file, @host_file
-      @ci.apply
-      expect( @ci.applied_status ).to eq :succeeded
-      expected = File.join(@files_dir, 'host_with_ldap_server_config_added.yaml')
-      expect( IO.read(@host_file) ).to eq IO.read(expected)
-=end
+    it 'should add the YAML tag to the end of the file when no regex specified' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      @tester.add_yaml_tag_directive("\nnew: tag", file_info)
+      expected = File.join(@files_dir, 'yaml_with_comments_appended.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
+    end
+
+    it 'should insert the YAML tag before the key matching regex' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      @tester.add_yaml_tag_directive("\nnew: tag", file_info, /^pam::access::users$/ )
+      expected = File.join(@files_dir, 'yaml_with_comments_inserted.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
+    end
+
+    it 'should add the YAML tag to the end of the file when regex does not match any key' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      @tester.add_yaml_tag_directive("\nnew: tag", file_info, /^does::not::exist$/ )
+      expected = File.join(@files_dir, 'yaml_with_comments_appended.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
+    end
   end
 
   describe '#replace_yaml_tag' do
