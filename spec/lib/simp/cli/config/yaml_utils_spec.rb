@@ -223,6 +223,47 @@ describe 'Simp::Cli::Config::YamlUtils API' do
   end
 
   describe '#merge_yaml_tag' do
+    it 'merges Array values' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
+
+    it 'inserts new Hash keys' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
+
+    it 'replaces existing Hash keys with new values' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
+
+    it 'fails when the new value is not an Array or a Hash' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
+
+    it 'fails when the old value is not an Array or a Hash' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
+
+    it 'fails when the new and old value are not both Hashes or Arrays' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+    end
   end
 
   describe '#merge_or_replace_yaml_tag' do

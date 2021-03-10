@@ -26,6 +26,9 @@ module Simp::Cli::Config
     #   should be inserted. When nil or no matching key is found,
     #   tag directive is appended the file.
     #
+    # @raise Exception if file_info[:filename] cannot be opened for writing
+    #   or any write fails
+    #
     def add_yaml_tag_directive(tag_directive, file_info, before_key_regex = nil)
       tag_added = false
       File.open(file_info[:filename], 'w') do |file|
@@ -65,6 +68,9 @@ module Simp::Cli::Config
     #      ...
     #    }
     #  }
+    #
+    # @raise Exception if filename cannot be opened or standard YAML parsing of
+    #   its content fails
     #
     def load_yaml_with_comment_blocks(filename)
       yaml_hash = YAML.load(IO.read(filename))
@@ -129,10 +135,8 @@ module Simp::Cli::Config
     #   value is not an Array or Hash, the value is replaced instead.
     #
     # @return operation performed: :none, :replace, :merge
-    # @raise Exception if standard YAML parsing of the input file fails,
-    #   any file operation fails, the value type of the YAML entry to be
-    #   merged does not match the new value type (except when either one
-    #   is nil).
+    # @raise Exception if the file_info[:filename[ cannot be opened for writing
+    #   or any write fails
     #
     def merge_or_replace_yaml_tag(key, new_value, file_info, merge = false)
       change_type = :none
@@ -159,7 +163,7 @@ module Simp::Cli::Config
       change_type
     end
 
-    # @return true if new_value is not contained in old_value, when both values are
+    # @return true if new_value is not contained in old_value, when both are
     #   either Arrays or Hashes
     #
     def merge_required?(old_value, new_value)
@@ -206,22 +210,19 @@ module Simp::Cli::Config
     #
     # @param key key
     # @param new_value value to be merged
+    # @param file_info Hash returned by load_yaml_with_comment_blocks
     #
-    # @raise if the type of new_value differs from the type of the existing
-    #   value or new_value is not an Array or Hash
+    # @raise Exception if the type of new_value and old_value are not both
+    #   Arrays or Hashes, if the file_info[:filename] cannot be opened for
+    #   writing or any write fails
     #
     def merge_yaml_tag(key, new_value, file_info)
       old_value = file_info[:content][key][:value]
 
-      if old_value.class != new_value.class
+      unless (old_value.is_a?(Hash) && new_value.is_a?(Hash)) ||
+             (old_value.is_a?(Array) && new_value.is_a?(Array))
         err_msg = "Unable to merge values for #{:key}:\n" +
-          "type mismatch - old type: #{old_value.class}, new type:#{new_value.class}"
-        raise err_msg
-      end
-
-      unless (new_value.is_a?(Array) || new_value.is_a?(Hash))
-        err_msg = "Unable to merge values for #{key}:\n" +
-          "unsupported type #{new_value.class}"
+          "old type: #{old_value.class} and new type:#{new_value.class} cannot be merged"
         raise err_msg
       end
 
