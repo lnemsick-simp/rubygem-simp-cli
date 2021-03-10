@@ -109,7 +109,7 @@ describe Simp::Cli::Config::Item::HieradataYAMLFileWriter do
 
     it 'writes a file' do
       @ci.apply
-      expect( File.exists?( @tmp_file ) ).to be true
+      expect( File.exist?( @tmp_file ) ).to be true
       expect( @ci.applied_status ).to eq :succeeded
     end
 
@@ -130,11 +130,11 @@ describe Simp::Cli::Config::Item::HieradataYAMLFileWriter do
 
       @ci.apply
       backup_file = "#{@tmp_file}.20170113T114203"
-      expect( File.exists?( backup_file ) ).to be true
+      expect( File.exist?( backup_file ) ).to be true
       actual_backup_content = IO.read( backup_file)
       expect( actual_backup_content).to eq old_content
 
-      expect( File.exists?( @tmp_file ) ).to be true
+      expect( File.exist?( @tmp_file ) ).to be true
       actual_content = IO.read( @tmp_file )
       expected_content = IO.read(File.join(@files_dir, 'hieradata_yaml_file_writer.yaml'))
       # fix version

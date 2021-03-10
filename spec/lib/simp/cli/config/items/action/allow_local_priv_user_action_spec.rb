@@ -16,7 +16,7 @@ describe Simp::Cli::Config::Item::AllowLocalPrivUserAction do
     item.value = true
     config_items[item.key] = item
 
-    item = Simp::Cli::Config::Item::CliLocalPrivUserHasAuthorizedSshKeys.new(puppet_env_info)
+    item = Simp::Cli::Config::Item::CliLocalPrivUserHasSshAuthorizedKeys.new(puppet_env_info)
     item.value = true
     config_items[item.key] = item
 

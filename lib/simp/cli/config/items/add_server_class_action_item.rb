@@ -27,7 +27,7 @@ module Simp::Cli::Config
       fqdn    = get_item( 'cli::network::hostname' ).value
       @file    = File.join( @dir, "#{fqdn}.yaml")
 
-      if File.exists?(@file)
+      if File.exist?(@file)
         classes_key = get_classes_key
         unless classes_key
           # SIMP server YAML is not configured as expected

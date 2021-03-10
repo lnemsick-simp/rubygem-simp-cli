@@ -7,7 +7,7 @@
         - CliLocalPrivUser
         - CliLocalPrivUserExists      SKIPQUERY SILENT:  # don't ever prompt, just discover current value
            true:
-            - CliLocalPrivUserHasAuthorizedSshKeys SKIPQUERY SILENT:  # don't ever prompt, just discover current value
+            - CliLocalPrivUserHasSshAuthorizedKeys SKIPQUERY SILENT:  # don't ever prompt, just discover current value
                true:
                 - CopySshAuthorizedKeysAction
            false:

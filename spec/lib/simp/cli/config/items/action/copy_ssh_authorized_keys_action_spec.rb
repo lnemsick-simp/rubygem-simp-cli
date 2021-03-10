@@ -63,7 +63,7 @@ describe Simp::Cli::Config::Item::CopySshAuthorizedKeysAction do
       @ci.apply
       expect( @ci.applied_status ).to eq(:succeeded)
       dest = File.join(@local_keys_dir, @username)
-      expect( File.exists?(dest) ).to be true
+      expect( File.exist?(dest) ).to be true
       expect( File.read(dest) ).to eq(File.read(keys_file))
     end
 

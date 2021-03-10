@@ -34,7 +34,7 @@ module Simp::Cli::Config
 
       if info
         authorized_keys_file = File.join(info.dir, '.ssh', 'authorized_keys')
-        if !File.exists?(authorized_keys_file)
+        if !File.exist?(authorized_keys_file)
           info("#{authorized_keys_file} does not exist")
           @applied_status = :unnecessary
         else

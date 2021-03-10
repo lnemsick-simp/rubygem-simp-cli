@@ -1,7 +1,7 @@
 require_relative '../item'
 require_relative 'cli_local_priv_user'
 require_relative 'cli_local_priv_user_exists'
-require_relative 'cli_local_priv_user_has_authorized_ssh_keys'
+require_relative 'cli_local_priv_user_has_ssh_authorized_keys'
 
 module Simp; end
 class Simp::Cli; end
@@ -30,7 +30,7 @@ module Simp::Cli::Config
       username = get_item( 'cli::local_priv_user' ).value
       password_required = true
       if ( get_item( 'cli::local_priv_user_exists' ).value &&
-         get_item( 'cli::local_priv_user_has_authorized_ssh_keys' ).value )
+         get_item( 'cli::local_priv_user_has_ssh_authorized_keys' ).value )
 
         # May be a cloud user who does not have a password, so doesn't
         # make sense for sudo to prompt for a password

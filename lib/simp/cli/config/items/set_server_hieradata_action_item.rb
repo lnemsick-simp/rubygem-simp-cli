@@ -29,7 +29,7 @@ module Simp::Cli::Config
       @file = File.join( @dir, "#{fqdn}.yaml")
 
       successes = 0
-      if File.exists?(@file)
+      if File.exist?(@file)
         @hiera_to_add.each do |key|
           info( "Processing #{key} in #{File.basename(@file)}" )
           # reread info because we are writing out to file with every key

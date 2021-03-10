@@ -35,7 +35,7 @@ describe Simp::Cli::Config::Item::SudoUserSpecifications do
         item.value = true
         @ci.config_items[item.key] = item
 
-        item = Simp::Cli::Config::Item::CliLocalPrivUserHasAuthorizedSshKeys.new
+        item = Simp::Cli::Config::Item::CliLocalPrivUserHasSshAuthorizedKeys.new
         item.value = true
         @ci.config_items[item.key] = item
 
@@ -57,7 +57,7 @@ describe Simp::Cli::Config::Item::SudoUserSpecifications do
         item.value = true
         @ci.config_items[item.key] = item
 
-        item = Simp::Cli::Config::Item::CliLocalPrivUserHasAuthorizedSshKeys.new
+        item = Simp::Cli::Config::Item::CliLocalPrivUserHasSshAuthorizedKeys.new
         item.value = false
         @ci.config_items[item.key] = item
 
@@ -83,7 +83,7 @@ describe Simp::Cli::Config::Item::SudoUserSpecifications do
         expect { @ci.get_recommended_value }.to raise_error(Simp::Cli::Config::InternalError)
       end
 
-      it 'fails when cli::local_priv_user_exists=true and cli::local_priv_user_has_authorized_ssh_keys does not exist' do
+      it 'fails when cli::local_priv_user_exists=true and cli::local_priv_user_has_ssh_authorized_keys does not exist' do
         item = Simp::Cli::Config::Item::CliLocalPrivUserExists.new
         item.value = true
         @ci.config_items[item.key] = item
