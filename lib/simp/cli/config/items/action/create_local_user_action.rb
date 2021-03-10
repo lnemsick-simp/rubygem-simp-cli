@@ -20,25 +20,19 @@ module Simp::Cli::Config
       @username = get_item( 'cli::local_priv_user' ).value
       pwd_hash = get_item( 'cli::local_priv_user_password' ).value
 
-      group_cmd = "puppet resource group #{@username} ensure=present"
-      result = Simp::Cli::Utils::show_wait_spinner {
-        execute(group_cmd)
-      }
+      result = create_resource('group', @username)
 
-      home_dir = "/var/local/#{@username}"
-      user_cmd = [
-        "puppet resource user #{@username}",
-        'ensure=present',
-        "groups='#{@username}'",
-        "password='#{pwd_hash}'",
-        "home=#{home_dir}",
-        'manageHome=true',
-        'shell=/bin/bash'
-      ].join(' ')
+      if result
+        user_attributes = [
+          "groups='#{@username}'",
+          "password='#{pwd_hash}'",
+          "home=/var/local/#{@username}",
+          'manageHome=true',
+          'shell=/bin/bash'
+        ]
 
-      result = Simp::Cli::Utils::show_wait_spinner {
-        execute(user_cmd)
-      }
+        result = create_resource('user', @username, user_attributes)
+      end
 
       @applied_status = :succeeded if result
     end
@@ -47,5 +41,35 @@ module Simp::Cli::Config
       "Creation of local user#{@username ? " #{@username}" : ''} #{@applied_status}"
     end
 
+    # Create a resource using `puppet resource`
+    #
+    # @param type Resource type
+    # @param name Resource name
+    # @param attributes Additional resource attributes beyond 'ensure=present'
+    #
+    # @return whether resource was created
+    #
+    def create_resource(type, name, attributes=[])
+      result = Simp::Cli::Utils::show_wait_spinner {
+        # puppet command won't necessarily exit with a non-0 exit code upon
+        # failure, but will definitely return the status of the resource on
+        # success
+        cmd_succeeded = true
+        cmd = "puppet resource #{type} #{name} ensure=present #{attributes.join(' ')} --to_yaml"
+        result = run_command(cmd)
+        if result[:stdout].match(/ensure:\s+present/)
+          info("Created #{type} '#{name}'")
+        else
+          err_msg = "Unable to create #{type} '#{name}'"
+          # if command failed but returned 0, error messages not already logged
+          err_msg += ":\n#{result[:stderr]}" if result[:status]
+          error(err_msg)
+          cmd_succeeded = false
+        end
+        cmd_succeeded
+      }
+
+      result
+    end
   end
 end
