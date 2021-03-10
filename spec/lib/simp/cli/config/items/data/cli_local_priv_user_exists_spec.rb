@@ -1,6 +1,7 @@
 require 'simp/cli/config/items/data/cli_local_priv_user_exists'
 require 'rspec/its'
 require_relative '../spec_helper'
+require 'ostruct'
 
 EtcPwnamStruct = Struct.new(:name, :passwd, :uid, :gid, :gecos, :dir, :shell)
 

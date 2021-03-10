@@ -135,7 +135,7 @@
            true:
             - CliLocalPrivUserHasAuthorizedSshKeys SKIPQUERY SILENT:  # don't ever prompt, just discover current value
                true:
-                - CopyAuthorizedKeysAction
+                - CopySshAuthorizedKeysAction
            false:
             - CliLocalPrivUserPassword
             - CreateLocalUserAction
