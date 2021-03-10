@@ -1,7 +1,53 @@
 require 'yaml'
 
 module Simp::Cli::Config
+
+  # YAML utilities for parsing and modifying a YAML file
   module YamlUtils
+
+    # Add a tag directive to a YAML file
+    #
+    # - Will add tag_directive before the 1st key that matches
+    #  'before_key_regex', when that regex is set
+    # - The tag_directive must have been generated with the standard Ruby YAML
+    #   library
+    # - In order to make sure all the indentation in the resulting file is
+    #   consistent, the file will be recreated with the standard Ruby
+    #   YAML library, preserving blocks of comments (including empty lines)
+    #   before the '---' and each major key.
+    #   - Unnecessary quotes around string values will be removed and spacing
+    #     will be normalized to that of the standard Ruby YAML output formatter.
+    #     However, these formatting changes are insignificant.
+    #   - TODO: Preserve other comments
+    #
+    # @param tag_directive tag directive to add
+    # @param file_info Hash returned by load_yaml_with_comment_blocks
+    # @param before_key_regex Optional regex specifying where tag directive
+    #   should be inserted. When nil or no matching key is found,
+    #   tag directive is appended the file.
+    #
+    def add_yaml_tag_directive(tag_directive, file_info, before_key_regex = nil)
+      tag_added = false
+      File.open(file_info[:filename], 'w') do |file|
+        file.puts(file_info[:preamble].join("\n")) unless file_info[:preamble].empty?
+        file.puts('---')
+        file_info[:content].each do |k, info|
+          if before_key_regex && !tag_added && k.match?(before_key_regex)
+            file.puts
+            file.puts(tag_directive.strip)
+            tag_added = true
+          end
+          # use write + \n to eliminate puts dedup of \n
+          file.write(info[:comments].join("\n") +  "\n") unless info[:comments].empty?
+          file.puts(pair_to_yaml_tag(k, info[:value]))
+        end
+
+        unless tag_added
+          file.puts
+          file.puts(tag_directive.strip)
+        end
+      end
+    end
 
     # Parses a YAML file and returns a Hash with following structure
     #  {
@@ -60,22 +106,6 @@ module Simp::Cli::Config
       }
     end
 
-    # @return String containing the YAML tag directive for the <key,value> pair
-    #
-    # Examples:
-    # * pair_to_yaml('key', 'value') would return "key: value"
-    # * pair_to_yaml('key', [1, 2] would return
-    #     <<~EOM
-    #     key:
-    #     - 1
-    #     - 2
-    #     EOM
-    #
-    def pair_to_yaml_tag(key, value)
-      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
-      { key => value }.to_yaml.gsub(/^---\s*\n/m, '')
-    end
-
     # Merge/replace value of a key's tag directive in a YAML file
     #
     # - Leaves file untouched if no changes are required.
@@ -129,48 +159,34 @@ module Simp::Cli::Config
       change_type
     end
 
-    # Add a tag directive to a YAML file
+    # @return true if new_value is not contained in old_value, when both values are
+    #   either Arrays or Hashes
     #
-    # - Will add tag_directive before the 1st key that matches
-    #  'before_key_regex', when that regex is set
-    # - The tag_directive must have been generated with the standard Ruby YAML
-    #   library
-    # - In order to make sure all the indentation in the resulting file is
-    #   consistent, the file will be recreated with the standard Ruby
-    #   YAML library, preserving blocks of comments (including empty lines)
-    #   before the '---' and each major key.
-    #   - Unnecessary quotes around string values will be removed and spacing
-    #     will be normalized to that of the standard Ruby YAML output formatter.
-    #     However, these formatting changes are insignificant.
-    #   - TODO: Preserve other comments
-    #
-    # @param tag_directive tag directive to add
-    # @param file_info Hash returned by load_yaml_with_comment_blocks
-    # @param before_key_regex Optional regex specifying where tag directive
-    #   should be inserted. When nil or no matching key is found,
-    #   tag directive is appended the file.
-    #
-    def add_yaml_tag_directive(tag_directive, file_info, before_key_regex = nil)
-      tag_added = false
-      File.open(file_info[:filename], 'w') do |file|
-        file.puts(file_info[:preamble].join("\n")) unless file_info[:preamble].empty?
-        file.puts('---')
-        file_info[:content].each do |k, info|
-          if before_key_regex && !tag_added && k.match?(before_key_regex)
-            file.puts
-            file.puts(tag_directive.strip)
-            tag_added = true
-          end
-          # use write + \n to eliminate puts dedup of \n
-          file.write(info[:comments].join("\n") +  "\n") unless info[:comments].empty?
-          file.puts(pair_to_yaml_tag(k, info[:value]))
-        end
+    def merge_required?(old_value, new_value)
+      # merging doesn't make sense unless we are dealing with a pair of Hashes
+      # or Arrays
+      unless (old_value.is_a?(Hash) && new_value.is_a?(Hash)) ||
+             (old_value.is_a?(Array) && new_value.is_a?(Array))
+        return false
+      end
 
-        unless tag_added
-          file.puts
-          file.puts(tag_directive.strip)
+      merge_required = false
+      if old_value.is_a?(Array)
+        merge_required = !( (new_value & old_value) == new_value)
+      elsif old_value.is_a?(Hash)
+        if (new_value.keys & old_value.keys) == new_value.keys
+          new_value.each do |key,value|
+            if old_value[key] != value
+              merge_required = true
+              break
+            end
+          end
+        else
+          merge_required = true
         end
       end
+
+      merge_required
     end
 
     # Merge the new value for a key into its existing value and then replace
@@ -219,29 +235,20 @@ module Simp::Cli::Config
       replace_yaml_tag(key, merged_value, file_info)
     end
 
-    # @return true if new_value is not contained in old_value, when both values are
-    #   either Arrays or Hashes
+    # @return String containing the YAML tag directive for the <key,value> pair
     #
-    def merge_required?(old_value, new_value)
-      return false if old_value.class != new_value.class
-
-      merge_required = false
-      if old_value.is_a?(Array)
-        merge_required = !( (new_value & old_value) == new_value)
-      elsif old_value.is_a?(Hash)
-        if (new_value.keys & old_value.keys) == new_value.keys
-          new_value.each do |key,value|
-            if old_value[key] != value
-              merge_required = true
-              break
-            end
-          end
-        else
-          merge_required = true
-        end
-      end
-
-      merge_required
+    # Examples:
+    # * pair_to_yaml('key', 'value') would return "key: value"
+    # * pair_to_yaml('key', [1, 2] would return
+    #     <<~EOM
+    #     key:
+    #     - 1
+    #     - 2
+    #     EOM
+    #
+    def pair_to_yaml_tag(key, value)
+      # TODO: should we be using SafeYAML?  http://danieltao.com/safe_yaml/
+      { key => value }.to_yaml.gsub(/^---\s*\n/m, '')
     end
 
     # Replace tag directive for a key in a YAML file, preserving any existing
