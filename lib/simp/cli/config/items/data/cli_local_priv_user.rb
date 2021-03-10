@@ -22,6 +22,7 @@ module Simp::Cli::Config
     end
 
     def validate( x )
+      # https://unix.stackexchange.com/questions/157426/what-is-the-regex-to-validate-linux-users
       x.match(/^[a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\$)$/) != nil
     end
   end
