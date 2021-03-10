@@ -254,11 +254,17 @@ module Simp::Cli::Config
     # Replace tag directive for a key in a YAML file, preserving any existing
     # comment block prior that tag directive
     #
+    # - Does nothing the if the key is not present in file_info
+    # - Does **NOT** check if the existing value is of the same type as the
+    #   original value.
+    #
     # @param key key
     # @param new_value replacement value
     # @param file_info Hash returned by load_yaml_with_comment_blocks
     #
     def replace_yaml_tag(key, new_value, file_info)
+      return unless file_info[:content].keys.include?(key)
+
       File.open(file_info[:filename], 'w') do |file|
         file.puts(file_info[:preamble].join("\n")) unless file_info[:preamble].empty?
         file.puts('---')

@@ -184,9 +184,45 @@ describe 'Simp::Cli::Config::YamlUtils API' do
   end
 
   describe '#replace_yaml_tag' do
+    it 'should replace the YAML tag with the new simple value' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      expected = File.join(@files_dir, 'yaml_with_comments_simple_replace.yaml')
+      @tester.replace_yaml_tag('simp::yum::repo::local_simp::enable_repo', true, file_info)
+    end
+
+    it 'should replace the YAML tag with the new Array value' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      expected = File.join(@files_dir, 'yaml_with_comments_array_replace.yaml')
+      @tester.replace_yaml_tag('simp::server::classes', ['site::puppetdb'], file_info)
+    end
+
+    it 'should replace the YAML tag with the new Hash value' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      new_hash = { 'simpadmin' => { 'origins' => [ 'ALL' ] } }
+      @tester.replace_yaml_tag('pam:access:users', new_hash, file_info)
+      expected = File.join(@files_dir, 'yaml_with_comments_hash_replace.yaml')
+    end
+
+    it 'should not modify the file when the specified key does not exist' do
+      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      FileUtils.cp(file, @test_file)
+      file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+      @tester.replace_yaml_tag('does:not:exist', 'in file', file_info)
+      expect( IO.read(@test_file) ).to eq IO.read(file)
+    end
   end
 
-  describe '#merge_yaml_tag(' do
+  describe '#merge_yaml_tag' do
   end
 
   describe '#merge_or_replace_yaml_tag' do
