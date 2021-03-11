@@ -118,7 +118,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       # normalize out YAML keys that are not deterministic
       expected = config_normalize(
@@ -142,10 +142,12 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       # normalize out YAML keys that are not deterministic
-      expected = config_normalize(File.join(files_dir, 'simp_conf_setting_values_simp_lite_scenario.yaml'))
+      expected = config_normalize(
+        File.join(files_dir, 'simp_conf_setting_values_simp_lite_scenario.yaml')
+      )
       actual_simp_conf = config_normalize(@answers_output_file)
       expect( actual_simp_conf ).to eq expected
     end
@@ -162,7 +164,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       # normalize out YAML keys that are not deterministic
       expected = config_normalize(File.join(files_dir, 'simp_conf_setting_values_poss_scenario.yaml'))
@@ -189,7 +191,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
     end
 
     it 'creates valid file with no prompts when --force-defaults and KEY=VALUE arguments are complete' do
@@ -206,7 +208,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
     end
 
     it 'creates valid file from valid answers file using --apply-with-questions and no prompts' do
@@ -223,7 +225,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
       # Only change we expect is for hardcoded cli::version to have been updated
       expected = YAML.load(File.read(input_answers_file))
       expected['cli::version'] = Simp::Cli::VERSION
@@ -248,7 +250,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
       # we expect
       # - missing, non-interactive puppetdb::master::config::puppetdb_port and
       #   puppetdb::master::config::puppetdb_server to have been added
@@ -281,7 +283,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       # normalize out lines that are not deterministic
       expected = config_normalize(File.join(files_dir, 'simp_conf_with_overrides.yaml'))
@@ -304,7 +306,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
       expected = YAML.load(File.read(input_answers_file))
       expected['cli::version'] = Simp::Cli::VERSION
 
@@ -327,7 +329,7 @@ describe 'Simp::Cli::Command::Config#run' do
         puts @output.string
         raise
       end
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       expected = YAML.load(File.read(input_answers_file))
       expected['cli::version'] = Simp::Cli::VERSION
@@ -457,7 +459,7 @@ describe 'Simp::Cli::Command::Config#run' do
         raise
       end
 
-      expect( File.exists?( @log_file ) ).to be true
+      expect( File.exist?( @log_file ) ).to be true
 
       #FIXME validate full file content, not just that it contains debug-level messages
        content = IO.read(@log_file)
@@ -478,7 +480,7 @@ describe 'Simp::Cli::Command::Config#run' do
         raise
       end
 
-      expect( File.exists?( @log_file ) ).to be true
+      expect( File.exist?( @log_file ) ).to be true
 
       #FIXME validate full file content, not just that it contains debug-level messages
       content = IO.read(@log_file)
@@ -547,7 +549,7 @@ describe 'Simp::Cli::Command::Config#run' do
       end
       expect( pw_prompt_lines.size ).to eq 4
 
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
     end
 
     it 'fails after 5 failed start-over attempts' do
@@ -594,7 +596,7 @@ describe 'Simp::Cli::Command::Config#run' do
       end
 
       expect( error_lines.size ).to eq 2
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
     end
 
     it 'prompts when --apply-with-questions and input file has an invalid password' do
@@ -629,7 +631,7 @@ describe 'Simp::Cli::Command::Config#run' do
 
       warn_msg = "invalid value '#{bad_password}' for 'simp_openldap::server::conf::rootpw' will be **IGNORED**"
       expect( @output.string ).to match Regexp.escape(warn_msg)
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       actual_simp_conf = YAML.load(File.read(@answers_output_file))
       expect( actual_simp_conf ).to_not match bad_password
@@ -667,7 +669,7 @@ describe 'Simp::Cli::Command::Config#run' do
 
       match = @output.string.match(/recommended value: "({SSHA}.*)"/)
       expect( match ).to_not be_nil
-      expect( File.exists?( @answers_output_file ) ).to be true
+      expect( File.exist?( @answers_output_file ) ).to be true
 
       actual_simp_conf = YAML.load(File.read(@answers_output_file))
       expect( actual_simp_conf['simp_options::ldap::bind_hash'] ).to eq match[1]
