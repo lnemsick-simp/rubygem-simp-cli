@@ -69,6 +69,12 @@ module Simp::Cli::Config
     #    }
     #  }
     #
+    #  Has no mechanism to evaluate Hieradata functions such as `alias`. So,
+    #  the type of value that contains such a function will be String, even
+    #  if after Hieradata evaluation the type would be something else. For
+    #  example, "%{alias('simp_options::trusted_nets')}" would be considered
+    #  a String, even though the evaluated type is an Array.
+    #
     # @raise Exception if filename cannot be opened or standard YAML parsing of
     #   its content fails
     #
@@ -127,6 +133,11 @@ module Simp::Cli::Config
     #     will be normalized to that of the standard Ruby YAML output formatter.
     #     However, these formatting changes are insignificant.
     #   - TODO: Preserve other comments
+    # - Has no mechanism to evaluate Hieradata functions such as `alias`. So,
+    #   the type of value that contains such a function will be String, even
+    #   if after Hieradata evaluation the type would be something else. For
+    #   example, "%{alias('simp_options::trusted_nets')}" would be considered
+    #   a String, even though the evaluated type is an Array.
     #
     # @param key key to update
     # @param new_value value to be merged/replaced
@@ -207,22 +218,34 @@ module Simp::Cli::Config
     #     will be normalized to that of the standard Ruby YAML output formatter.
     #     However, these formatting changes are insignificant.
     #   - TODO: Preserve other comments
+    # - Has no mechanism to evaluate Hieradata functions such as `alias`. So,
+    #   the type of value that contains such a function will be String, even
+    #   if after Hieradata evaluation the type would be something else. For
+    #   example, "%{alias('simp_options::trusted_nets')}" would be considered
+    #   a String, even though the evaluated type is an Array.
     #
     # @param key key
     # @param new_value value to be merged
     # @param file_info Hash returned by load_yaml_with_comment_blocks
     #
-    # @raise Exception if the type of new_value and old_value are not both
-    #   Arrays or Hashes, if the file_info[:filename] cannot be opened for
-    #   writing or any write fails
+    # @raise Exception if a tag directive for key is not present in the file,
+    #   the type of new_value and the existing value are not both Arrays or
+    #   Hashes, if the file_info[:filename] cannot be opened for writing
+    #   or any write fails
     #
     def merge_yaml_tag(key, new_value, file_info)
+      unless file_info[:content].key?(key)
+        err_msg = "Unable to merge values for #{:key}:\n" +
+          "#{key} does not exist in #{file_info[:filename]}"
+        raise err_msg
+      end
+
       old_value = file_info[:content][key][:value]
 
       unless (old_value.is_a?(Hash) && new_value.is_a?(Hash)) ||
              (old_value.is_a?(Array) && new_value.is_a?(Array))
-        err_msg = "Unable to merge values for #{:key}:\n" +
-          "old type: #{old_value.class} and new type:#{new_value.class} cannot be merged"
+        err_msg = "Unable to merge values for #{key}:\n" +
+          "old type (#{old_value.class}) and new type (#{new_value.class}) cannot be merged"
         raise err_msg
       end
 

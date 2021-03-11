@@ -7,7 +7,7 @@ end
 
 describe 'Simp::Cli::Config::YamlUtils API' do
   before :each do
-    @files_dir = File.expand_path( 'files', File.dirname( __FILE__ ) )
+    @files_dir = File.join( File.dirname(__FILE__), 'files', 'yaml_utils' )
     @tmp_dir   = Dir.mktmpdir( File.basename(__FILE__) )
     @test_file = File.join(@tmp_dir, 'test.yaml')
     @tester = YamlUtilsTester.new
@@ -66,6 +66,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
 
   describe '#pair_to_yaml_tag' do
     {
+      'nil'            => { :value => nil, :exp => "key: \n" },
       'boolean'        => { :value => true, :exp => "key: true\n" },
       'integer'        => { :value => 1, :exp => "key: 1\n" },
       'float'          => { :value => 1.5, :exp => "key: 1.5\n" },
@@ -95,7 +96,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
 
   describe '#load_yaml_with_comment_blocks' do
     it 'should load YAML and comment blocks before primary keys' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       result = @tester.load_yaml_with_comment_blocks(file)
       expected = {
         :filename => file,
@@ -153,67 +154,70 @@ describe 'Simp::Cli::Config::YamlUtils API' do
 
   describe '#add_yaml_tag_directive' do
     it 'should add the YAML tag to the end of the file when no regex specified' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
       @tester.add_yaml_tag_directive("\nnew: tag", file_info)
-      expected = File.join(@files_dir, 'yaml_with_comments_appended.yaml')
+      expected = File.join(@files_dir, 'base_tag_appended.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'should insert the YAML tag before the key matching regex' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
       @tester.add_yaml_tag_directive("\nnew: tag", file_info, /^pam::access::users$/ )
-      expected = File.join(@files_dir, 'yaml_with_comments_inserted.yaml')
+      expected = File.join(@files_dir, 'base_tag_inserted.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'should add the YAML tag to the end of the file when regex does not match any key' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
       @tester.add_yaml_tag_directive("\nnew: tag", file_info, /^does::not::exist$/ )
-      expected = File.join(@files_dir, 'yaml_with_comments_appended.yaml')
+      expected = File.join(@files_dir, 'base_tag_appended.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
   end
 
   describe '#replace_yaml_tag' do
     it 'should replace the YAML tag with the new simple value' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
-      expected = File.join(@files_dir, 'yaml_with_comments_simple_replace.yaml')
+      expected = File.join(@files_dir, 'base_simple_replace.yaml')
       @tester.replace_yaml_tag('simp::yum::repo::local_simp::enable_repo', true, file_info)
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'should replace the YAML tag with the new Array value' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
-      expected = File.join(@files_dir, 'yaml_with_comments_array_replace.yaml')
+      expected = File.join(@files_dir, 'base_array_replace.yaml')
       @tester.replace_yaml_tag('simp::server::classes', ['site::puppetdb'], file_info)
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'should replace the YAML tag with the new Hash value' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
       new_hash = { 'simpadmin' => { 'origins' => [ 'ALL' ] } }
-      @tester.replace_yaml_tag('pam:access:users', new_hash, file_info)
-      expected = File.join(@files_dir, 'yaml_with_comments_hash_replace.yaml')
+      @tester.replace_yaml_tag('pam::access::users', new_hash, file_info)
+      expected = File.join(@files_dir, 'base_hash_replace.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'should not modify the file when the specified key does not exist' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
@@ -224,45 +228,64 @@ describe 'Simp::Cli::Config::YamlUtils API' do
 
   describe '#merge_yaml_tag' do
     it 'merges Array values' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      expected = File.join(@files_dir, 'base_array_merge.yaml')
+      @tester.merge_yaml_tag('simp::server::classes', ['simp::puppetdb', 'site::class1'], file_info)
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
-    it 'inserts new Hash keys' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+    it 'inserts new keys into existing Hash' do
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      new_hash = {
+        'local_admin1' => { 'origins' => [ 'ALL' ] },
+        'simpadmin' => { 'origins' => [ 'ALL' ] }
+      }
+      @tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
+      expected = File.join(@files_dir, 'base_hash_merge_insert_key.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
-    it 'replaces existing Hash keys with new values' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+    it 'replaces values of existing Hash keys' do
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      new_hash = { 'local_admin2' => { 'origins' => [ '10.0.2.0/24' ] } }
+      @tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
+      expected = File.join(@files_dir, 'base_hash_merge_replace_value.yaml')
+      expect( IO.read(@test_file) ).to eq IO.read(expected)
     end
 
     it 'fails when the new value is not an Array or a Hash' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      #@tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
     end
 
-    it 'fails when the old value is not an Array or a Hash' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+    it 'fails when tag directive is not present in file' do
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      expect{ @tester.merge_yaml_tag('does::not::exist', 'in file', file_info) }
+        .to raise_error(%r(does::not::exist does not exist in #{@test_file}))
     end
 
     it 'fails when the new and old value are not both Hashes or Arrays' do
-      file = File.join(@files_dir, 'yaml_with_comments.yaml')
+      file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
+      expect{ @tester.merge_yaml_tag('simp::yum::repo::local_simp::enable_repo', ['simp'], file_info) }
+        .to raise_error(/Unable to merge values for simp::yum::repo::local_simp::enable_repo/)
     end
   end
 
