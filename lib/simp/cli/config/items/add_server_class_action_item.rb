@@ -28,7 +28,8 @@ module Simp::Cli::Config
       @file    = File.join( @dir, "#{fqdn}.yaml")
 
       if File.exist?(@file)
-        classes_key = get_classes_key
+        file_info = load_yaml_with_comment_blocks(@file)
+        classes_key = get_classes_key(file_info[:content].keys)
         unless classes_key
           # SIMP server YAML is not configured as expected
           err_msg = "Unable to add #{@class_to_add} to the class list in #{File.basename(@file)}."
@@ -37,10 +38,7 @@ module Simp::Cli::Config
         end
 
         info( "Adding #{@class_to_add} to #{classes_key} in #{File.basename(@file)}.", [:GREEN] )
-
-        file_info = load_yaml_with_comment_blocks(@file)
         merge_yaml_tag(classes_key, [ @class_to_add ], file_info)
-
         @applied_status = :succeeded
       else
         error( "\nERROR: file not found: #{@file}", [:RED] )
@@ -52,18 +50,18 @@ module Simp::Cli::Config
       "Addition of #{@class_to_add} to #{file} class list #{@applied_status}"
     end
 
-    # @return which classes key is found in the YAML file or nil if none
-    #   is found
-    def get_classes_key
+    # @param Array of keys
+    # @return which classes key is found in keys or nil if none is found
+    def get_classes_key(keys)
       classes_key = nil
-      yaml_hash = YAML.load(File.read(@file))
-      if yaml_hash.key?('simp::server::classes')
+      if keys.include?('simp::server::classes')
         classes_key = 'simp::server::classes'
-      elsif yaml_hash.key?('simp::classes')
+      elsif keys.include?('simp::classes')
         classes_key = 'simp::classes'
-      elsif yaml_hash.key?('classes')
+      elsif keys.include?('classes')
         classes_key = 'classes'
       end
+
       classes_key
     end
   end

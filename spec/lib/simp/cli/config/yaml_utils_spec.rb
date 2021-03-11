@@ -190,9 +190,10 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
-      expected = File.join(@files_dir, 'base_simple_replace.yaml')
       @tester.replace_yaml_tag('simp::yum::repo::local_simp::enable_repo', true, file_info)
+      expected = File.join(@files_dir, 'base_simple_replace.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'should replace the YAML tag with the new Array value' do
@@ -200,9 +201,10 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
-      expected = File.join(@files_dir, 'base_array_replace.yaml')
       @tester.replace_yaml_tag('simp::server::classes', ['site::puppetdb'], file_info)
+      expected = File.join(@files_dir, 'base_array_replace.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'should replace the YAML tag with the new Hash value' do
@@ -214,6 +216,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       @tester.replace_yaml_tag('pam::access::users', new_hash, file_info)
       expected = File.join(@files_dir, 'base_hash_replace.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'should not modify the file when the specified key does not exist' do
@@ -232,9 +235,10 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
 
-      expected = File.join(@files_dir, 'base_array_merge.yaml')
       @tester.merge_yaml_tag('simp::server::classes', ['simp::puppetdb', 'site::class1'], file_info)
+      expected = File.join(@files_dir, 'base_array_merge.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'inserts new keys into existing Hash' do
@@ -249,6 +253,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       @tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
       expected = File.join(@files_dir, 'base_hash_merge_insert_key.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'replaces values of existing Hash keys' do
@@ -260,6 +265,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       @tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
       expected = File.join(@files_dir, 'base_hash_merge_replace_value.yaml')
       expect( IO.read(@test_file) ).to eq IO.read(expected)
+      YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
     end
 
     it 'fails when the new value is not an Array or a Hash' do
@@ -270,7 +276,7 @@ describe 'Simp::Cli::Config::YamlUtils API' do
       #@tester.merge_yaml_tag('pam::access::users', new_hash, file_info)
     end
 
-    it 'fails when tag directive is not present in file' do
+    it 'fails when tag directive for key is not present in file' do
       file = File.join(@files_dir, 'base.yaml')
       FileUtils.cp(file, @test_file)
       file_info = @tester.load_yaml_with_comment_blocks(@test_file)
@@ -290,5 +296,91 @@ describe 'Simp::Cli::Config::YamlUtils API' do
   end
 
   describe '#merge_or_replace_yaml_tag' do
+    context 'default behavior' do
+      it 'leaves file untouched and returns :none when tag directive for key is not present in file' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag('does:not:exist', 'in file', file_info)
+        expect( result ).to eq :none
+        expect( IO.read(@test_file) ).to eq IO.read(file)
+      end
+
+      it 'leaves file untouched and returns :none when no changes are required' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag(
+          'simp::yum::repo::local_simp::enable_repo', false, file_info)
+        expect( result ).to eq :none
+        expect( IO.read(@test_file) ).to eq IO.read(file)
+      end
+
+      it 'replaces the tag directive and returns :replace when new value is nil' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag('pam::access::users', nil, file_info)
+        expect( result ).to eq :replace
+        expected = File.join(@files_dir, 'base_nil_replace.yaml')
+        expect( IO.read(@test_file) ).to eq IO.read(expected)
+        YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
+      end
+
+      it 'replaces the tag directive and returns :replace when new value is not nil' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag(
+          'simp::server::classes', ['site::puppetdb'], file_info)
+        expect( result ).to eq :replace
+        expected = File.join(@files_dir, 'base_array_replace.yaml')
+        expect( IO.read(@test_file) ).to eq IO.read(expected)
+        YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
+      end
+    end
+
+    context 'merge=true' do
+      it 'replaces the tag directive and returns :replace when value types do not match' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag(
+          'simp_apache::conf::ssl::trusted_nets', ['10.0.2.0/24'], file_info, true)
+        expect( result ).to eq :replace
+        expected = File.join(@files_dir, 'base_replace_type_change.yaml')
+        expect( IO.read(@test_file) ).to eq IO.read(expected)
+        YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
+      end
+
+      it 'merges the values and returns :merge when new value can be merged' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag(
+          'simp::server::classes', ['simp::puppetdb', 'site::class1'], file_info, true)
+        expect( result ).to eq :merge
+        expected = File.join(@files_dir, 'base_array_merge.yaml')
+        expect( IO.read(@test_file) ).to eq IO.read(expected)
+        YAML.load(IO.read(@test_file)) # verifies modified file is still valid YAML
+      end
+
+      it 'leaves file untouched and returns :none when new value contained in old value' do
+        file = File.join(@files_dir, 'base.yaml')
+        FileUtils.cp(file, @test_file)
+        file_info = @tester.load_yaml_with_comment_blocks(@test_file)
+
+        result = @tester.merge_or_replace_yaml_tag(
+          'simp::classes', ['simp::server'], file_info, true)
+        expect( result ).to eq :none
+        expect( IO.read(@test_file) ).to eq IO.read(file)
+      end
+    end
   end
 end

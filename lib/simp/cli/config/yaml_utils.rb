@@ -118,13 +118,22 @@ module Simp::Cli::Config
       }
     end
 
+    # @return true if both inputs are Hashes or both inputs are Arrays
+    def mergeable?(x, y)
+      (x.is_a?(Hash) && y.is_a?(Hash)) || (x.is_a?(Array) && y.is_a?(Array))
+    end
+
     # Merge/replace value of a key's tag directive in a YAML file
     #
-    # - Leaves file untouched if no changes are required.
+    # - Leaves file untouched when
+    #   - No changes are required.
+    #   - Key specified does not already exist in file
     # - Merging is controlled by the 'merge' parameter and can only be enabled
-    #   for Arrays or Hashes
-    # - Hash merges are limited to primary keys. In other words, **no**
-    #   deep merging is provided.
+    #   for Arrays or Hashes, when both the new and old values are of the same
+    #   type
+    #   - Will replace otherwise
+    #   - Hash merges are limited to primary keys. In other words, **no**
+    #     deep merging is provided.
     # - In order to make sure all the indentation in the resulting file is
     #   consistent, the file will be recreated with the standard Ruby
     #   YAML library, preserving blocks of comments (including empty lines)
@@ -146,21 +155,21 @@ module Simp::Cli::Config
     #   value is not an Array or Hash, the value is replaced instead.
     #
     # @return operation performed: :none, :replace, :merge
-    # @raise Exception if the file_info[:filename[ cannot be opened for writing
+    # @raise Exception if the file_info[:filename] cannot be opened for writing
     #   or any write fails
     #
     def merge_or_replace_yaml_tag(key, new_value, file_info, merge = false)
       change_type = :none
-      old_value = file_info[:content][key][:value]
+      return change_type unless file_info[:content].key?(key)
 
-      # we always retain any existing comment block for a key, so nothing to do
+      old_value = file_info[:content][key][:value]
       return change_type if new_value == old_value
 
       if new_value.nil? || old_value.nil?
         change_type = :replace
         replace_yaml_tag(key, new_value, file_info)
       else
-        if merge && (new_value.is_a?(Hash) || new_value.is_a?(Array))
+        if merge && mergeable?(old_value, new_value)
           if merge_required?(old_value, new_value)
             change_type = :merge
             merge_yaml_tag(key, new_value, file_info)
@@ -178,12 +187,7 @@ module Simp::Cli::Config
     #   either Arrays or Hashes
     #
     def merge_required?(old_value, new_value)
-      # merging doesn't make sense unless we are dealing with a pair of Hashes
-      # or Arrays
-      unless (old_value.is_a?(Hash) && new_value.is_a?(Hash)) ||
-             (old_value.is_a?(Array) && new_value.is_a?(Array))
-        return false
-      end
+      return false unless mergeable?(old_value, new_value)
 
       merge_required = false
       if old_value.is_a?(Array)
@@ -242,8 +246,7 @@ module Simp::Cli::Config
 
       old_value = file_info[:content][key][:value]
 
-      unless (old_value.is_a?(Hash) && new_value.is_a?(Hash)) ||
-             (old_value.is_a?(Array) && new_value.is_a?(Array))
+      unless mergeable?(old_value, new_value)
         err_msg = "Unable to merge values for #{key}:\n" +
           "old type (#{old_value.class}) and new type (#{new_value.class}) cannot be merged"
         raise err_msg
