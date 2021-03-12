@@ -16,7 +16,7 @@ describe Simp::Cli::Config::Item::WarnVerifyUserAccessAfterBootstrapAction do
       expect( @ci.applied_status ).to eq :deferred
       expected = <<~EOM
         'local_admin' access verification after `simp bootstrap` deferred:
-          'local_admin' access configuration requires manual verification
+            'local_admin' access configuration requires manual verification
       EOM
       expect( @ci.apply_summary ).to eq(expected.strip)
     end
