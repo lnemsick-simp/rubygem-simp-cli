@@ -17,6 +17,7 @@ module Simp::Cli::Config
 The value entered is used to set the local user's password when the local
 user is created. The value stored in #{@key} is a
 hash of the password.}
+      @data_type   = :cli_params
       @generate_option = :never_generate
     end
 

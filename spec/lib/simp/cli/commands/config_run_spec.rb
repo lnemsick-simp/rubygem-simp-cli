@@ -97,9 +97,9 @@ describe 'Simp::Cli::Command::Config#run' do
       'simp_options::puppet::server',
    ] }
 
-  context 'creates SIMP global hieradata file when input is valid' do
+  context 'creates SIMP global hieradata file when input is valid and user is root' do
     it 'hieradata file contains only hieradata' do
-      skip('This requires an integration test, as file is only written when user is root')
+      skip('Tested in acceptance test')
     end
   end
 
@@ -177,7 +177,9 @@ describe 'Simp::Cli::Command::Config#run' do
       input_string <<
                 "\n"                         << # accept auto-generated grub password
                 "iTXA8O6yC=DMotMGTeHd7IGI\n" << # LDAP root password
-                "iTXA8O6yC=DMotMGTeHd7IGI\n"    # confirm LDAP root password
+                "iTXA8O6yC=DMotMGTeHd7IGI\n" << # confirm LDAP root password
+                "P@ssw0rdP@ssw0rd!\n"        << # simpadmin password
+                "P@ssw0rdP@ssw0rd!\n"           # confirm simpadmin password
       @input.reopen(input_string)
       @input.rewind
 
@@ -201,7 +203,9 @@ describe 'Simp::Cli::Command::Config#run' do
           '-l', @log_file, '--dry-run', '--force-defaults',
           'cli::network::interface=enp0s3',
           'simp_openldap::server::conf::rootpw={SSHA}UJEQJzeoFmKAJX57NBNuqerTXndGx/lL',
-          'grub::password=grub.pbkdf2.sha512.10000.512AEFAA6DBAB5E70A9C8368B4D7AFAD95CEC1E2203880B738750B8168E0C0BD37C20E6C4186B81B988176DD4A92F292B633893CB0A77C6CBD9799B290325C86.7414615C530889529098000561BC6B2B67415F97F4D387194631324065562F2BD3E2BFE80B29FF9AC2A32AC4BD86036FCBB1CAA0E8B5454DA9DCD2B17124A103' ])
+          'grub::password=grub.pbkdf2.sha512.10000.512AEFAA6DBAB5E70A9C8368B4D7AFAD95CEC1E2203880B738750B8168E0C0BD37C20E6C4186B81B988176DD4A92F292B633893CB0A77C6CBD9799B290325C86.7414615C530889529098000561BC6B2B67415F97F4D387194631324065562F2BD3E2BFE80B29FF9AC2A32AC4BD86036FCBB1CAA0E8B5454DA9DCD2B17124A103',
+           'cli::local_priv_user_password=$6$l69r7t36$WZxDVhvdMZeuL0vRvOrSLMKWxxQbuK1j8t0vaEq3BW913hjOJhRNTxqlKzDflPW7ULPwkBa6xdfcca2BlGoq/.'
+          ])
         end
       rescue Exception => e # generic to capture Timeout and misc HighLine exceptions
         puts '=========stdout========='
@@ -298,8 +302,7 @@ describe 'Simp::Cli::Command::Config#run' do
           @config.run([
             '-o', @answers_output_file,
             '--apply', input_answers_file,
-            '-l', @log_file, '--dry-run',
-            'cli::network::interface=enp0s3'])
+            '-l', @log_file, '--dry-run'])
         end
       rescue Exception => e # generic to capture Timeout and misc HighLine exceptions
         puts '=========stdout========='
@@ -315,7 +318,7 @@ describe 'Simp::Cli::Command::Config#run' do
     end
 
     it 'creates valid file using --apply and KEY=VALUE arguments' do
-      input_answers_file = File.join(files_dir, 'prev_simp_conf.yaml')
+      input_answers_file = File.join(files_dir, 'prev_simp_conf_invalid_interface.yaml')
       begin
         Timeout.timeout(max_config_run_seconds) do
           @config.run([
@@ -344,7 +347,7 @@ describe 'Simp::Cli::Command::Config#run' do
   context 'applies actions appropriately' do
 
     it 'when user is root, applies all actions' do
-      skip('This requires an integration test, as modifies system')
+      skip('Tested in acceptance test, as modifies system')
     end
 
     it 'when user is not root, fails if --dry-run is not selected' do
