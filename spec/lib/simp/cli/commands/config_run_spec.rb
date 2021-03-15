@@ -334,7 +334,7 @@ describe 'Simp::Cli::Command::Config#run' do
       end
       expect( File.exist?( @answers_output_file ) ).to be true
 
-      expected = YAML.load(File.read(input_answers_file))
+      expected = YAML.load(File.read((File.join(files_dir, 'prev_simp_conf.yaml'))))
       expected['cli::version'] = Simp::Cli::VERSION
 
       actual_simp_conf = YAML.load(File.read(@answers_output_file))
@@ -347,7 +347,7 @@ describe 'Simp::Cli::Command::Config#run' do
   context 'applies actions appropriately' do
 
     it 'when user is root, applies all actions' do
-      skip('Tested in acceptance test, as modifies system')
+      skip('Tested in acceptance test')
     end
 
     it 'when user is not root, fails if --dry-run is not selected' do
@@ -384,6 +384,7 @@ describe 'Simp::Cli::Command::Config#run' do
         %r{Setting of hostname skipped}m,
         %r{Configuration of a network interface skipped}m,
         %r{Setting of GRUB password skipped}m,
+        %r{Creation of local user skipped}m,
         %r{Setup of autosign in /etc/puppetlabs/puppet/autosign.conf skipped}m,
         %r{Update to Puppet settings in /etc/puppetlabs/puppet/puppet.conf skipped}m,
         %r{Update to /etc/hosts to ensure puppet server entries exist skipped}m,
@@ -394,8 +395,9 @@ describe 'Simp::Cli::Command::Config#run' do
         %r{Setting of PuppetDB master server & port in SIMP server <host>.yaml skipped}m,
         %r{Addition of simp::server::ldap to SIMP server <host>.yaml class list skipped}m,
         %r{Setting of LDAP Root password hash in SIMP server <host>.yaml skipped}m,
-        %r{Disallow of inapplicable, local 'simp' user in SIMP server <host>.yaml skipped}m,
-        %r{Check for login lockout risk skipped}m,
+        %r{Disable of inapplicable user config in SIMP server <host>.yaml skipped}m,
+        %r{Configuring ssh & sudo for local user 'simpadmin' in SIMP server <host>.yaml skipped}m,
+        %r{'simpadmin' access verification after `simp bootstrap` skipped}m,
         %r{#{@answers_output_file} created}m,
         %r{Detailed log written to #{@log_file}}m
       ]
@@ -436,6 +438,7 @@ describe 'Simp::Cli::Command::Config#run' do
           '--disable-queries',
           'simp_openldap::server::conf::rootpw={SSHA}UJEQJzeoFmKAJX57NBNuqerTXndGx/lL',
           'grub::password=grub.pbkdf2.sha512.10000.512AEFAA6DBAB5E70A9C8368B4D7AFAD95CEC1E2203880B738750B8168E0C0BD37C20E6C4186B81B988176DD4A92F292B633893CB0A77C6CBD9799B290325C86.7414615C530889529098000561BC6B2B67415F97F4D387194631324065562F2BD3E2BFE80B29FF9AC2A32AC4BD86036FCBB1CAA0E8B5454DA9DCD2B17124A103',
+           'cli::local_priv_user_password=$6$l69r7t36$WZxDVhvdMZeuL0vRvOrSLMKWxxQbuK1j8t0vaEq3BW913hjOJhRNTxqlKzDflPW7ULPwkBa6xdfcca2BlGoq/.',
           '--quiet'])
         end
       rescue Exception => e # generic to capture Timeout and misc HighLine exceptions
@@ -526,11 +529,15 @@ describe 'Simp::Cli::Command::Config#run' do
     it 'starts over when user enters different inputs for a password' do
       input_string = ''
       input_string <<
-                "\n"                         << # don't auto-generate LDAP root password
+                "\n"                         << # accept auto-generated grub password
                 "iTXA8O6y{oDMotMGTeHd7IGI\n" << # attempt 1: LDAP root password
                 "iTXA8O6y{oDMotMGTeHd7\n"    << # attempt 1: bad confirm password
                 "iTXA8O6y{oDMotMGTeHd7IGI\n" << # attempt 2: LDAP root password
-                "iTXA8O6y{oDMotMGTeHd7IGI\n"    # attempt 2: valid confirm LDAP root password
+                "iTXA8O6y{oDMotMGTeHd7IGI\n" << # attempt 2: valid confirm LDAP root password
+                "P@ssw0rdP@ssw0rd!\n"        << # attempt 1: simpadmin password
+                "P@ssw0rdP@ssw\n"            << # attempt 1: bad confirm password
+                "P@ssw0rdP@ssw0rd!\n"        << # attempt 2: simpadmin password
+                "P@ssw0rdP@ssw0rd!\n"           # attempt 2: valid confirm simpadmin password
       @input.reopen(input_string)
       @input.rewind
 
@@ -550,15 +557,15 @@ describe 'Simp::Cli::Command::Config#run' do
         !line.include?('Please enter a password') and
         !line.include?('Please confirm the password')
       end
-      expect( pw_prompt_lines.size ).to eq 4
+      expect( pw_prompt_lines.size ).to eq 8
 
       expect( File.exist?( @answers_output_file ) ).to be true
     end
 
     it 'fails after 5 failed start-over attempts' do
-      input_string = "\n" # don't auto-generate LDAP root password
+      input_string = "\n"    # accept auto-generated grub password
       (1..5).each do |attempt|
-        input_string << "iTXA8O6y{oDMotMGTeHd7IGI\n"       << # valid LDAP root password
+        input_string << "iTXA8O6y{oDMotMGTeHd7IGI\n"          # valid LDAP root password
         input_string << "Bad confirm password #{attempt}\n"   # non-matching confirm
        end
       @input.reopen(input_string)
@@ -574,11 +581,13 @@ describe 'Simp::Cli::Command::Config#run' do
     it 're-prompts when user enters a password that fails validation' do
       input_string = ''
       input_string <<
-                "\n"                         << # don't auto-generate LDAP root password
+                "\n"                         << # accept auto-generated grub password
                 "}.9rt\n"                    << # attempt 1: too short + needs brace escape
                 "1234567890{\n"              << # attempt 2: fails cracklib check + needs brace escape
                 "iTXA8O6y}.9MotMGTeHd7IGI\n" << # attempt 3: good LDAP root password
-                "iTXA8O6y}.9MotMGTeHd7IGI\n"    # attempt 3: valid confirm LDAP root password
+                "iTXA8O6y}.9MotMGTeHd7IGI\n" << # attempt 3: valid confirm LDAP root password
+                "P@ssw0rdP@ssw0rd!\n"        << # attempt 1: simpadmin password
+                "P@ssw0rdP@ssw0rd!\n"           # attempt 1: valid confirm simpadmin password
       @input.reopen(input_string)
       @input.rewind
 

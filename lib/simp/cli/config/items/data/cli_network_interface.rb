@@ -62,7 +62,7 @@ module Simp::Cli::Config
       if acceptable_values.empty?
         # should only get here if the networking fact is not present, e.g.,
         # when running `simp config` with Facter 2.x
-        !x.strip.empty?
+        x.nil? ? false : !x.strip.empty?
       else
         acceptable_values.include?( x )
       end
