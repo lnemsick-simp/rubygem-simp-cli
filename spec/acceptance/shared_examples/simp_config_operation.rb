@@ -1,27 +1,63 @@
 require 'yaml'
+
+# @param host Host object
+# @param opts Test options Hash
+# @option opts :description
+# opts = {
+#  :description             => '',
+#  :puppet_env              => 'production',
+#  :scenario                => 'simp',
+#  :set_grub_password       => true,
+#  :use_simp_internet_repos => true,
+#  :ldap_server             => true,
+#  :sssd                    => true, # only an option in 'poss' scenario
+#  :logservers              => [],
+#  :failover_logservers     => [],
+#  :priv_user               =>  { # nil value disables
+#    :name     => 'simpadmin',
+#    :exists   => false,         # whether already exists
+#    :has_keys => false
+#  },
+#
+#  # additional `simp config` command line options/args
+#  :config_opts_to_add      => [],
+#
+#  # environment variables to set when running simp config
+#  :env_vars                => [],
+#
+#  # Interface to configure for puppetserver communication
+#  :interface               => 'eth1'
+# }.merge(options)
 shared_examples 'simp config operation' do |host,options|
 
  opts = {
-  :description           => '',
+  :description             => '',
+  :puppet_env              => 'production',
+  :scenario                => 'simp',
+  :set_grub_password       => true,
+  :use_simp_internet_repos => true,
+  :ldap_server             => true,
+  :sssd                    => true, # only an option in 'poss' scenario
+  :logservers              => [],
+  :failover_logservers     => [],
+  :priv_user               =>  { # nil value disables
+    :name     => 'simpadmin',
+    :exists   => false,         # whether already exists
+    :has_keys => false
+  },
 
-  # Puppet environment
-  :puppet_env            => 'production',
-
-  :scenario              => 'simp',
-
-  # `simp config` command line options/args to add to default_config_opts
-  :config_opts_to_add    => [],
-
-  # `simp config` command line options/args to remove from default_config_opts
-  :config_opts_to_remove => [],
+  # additional `simp config` command line options/args
+  :config_opts_to_add      => [],
 
   # environment variables to set when running simp config
-  :env_vars              => [],
+  :env_vars                => [],
 
   # Interface to configure for puppetserver communication
-  :interface             => 'eth1'
+  :interface               => 'eth1'
  }.merge(options)
 
+  let(:files_dir) { File.join(File.dirname(__FILE__), 'files') }
+  let(:password) { 'P@ssw0rdP@ssw0rd' }
   let(:grub_pwd_hash) {
     'grub.pbkdf2.sha512.10000.DE78658C8482E4F3752B61942622345CB22BF23FECDDDCA41D9891FF7569376D3177D11945AF344267B04B44227475BDD520367D5A492EEADCBAB6AA76718AFA.2B08D03310E1514F517A59D9F1B174C73DC15B9C02010F88DC6E6FC8C869D16B9B38E9004CB6382AFE3A68BFC29E14B49C48360ED829D6EDC25E05F5609069F8'
   }
@@ -31,7 +67,7 @@ shared_examples 'simp config operation' do |host,options|
     '$6$l69r7t36$WZxDVhvdMZeuL0vRvOrSLMKWxxQbuK1j8t0vaEq3BW913hjOJhRNTxqlKzDflPW7ULPwkBa6xdfcca2BlGoq/.'
   }
 
-  let(:default_config_opts) {
+  let(:config_opts) {
     config = [
       # `simp config` command line options
 
@@ -47,34 +83,73 @@ shared_examples 'simp config operation' do |host,options|
 
       'cli::network::set_up_nic=false', # Do NOT mess with the network!
       "cli::network::interface=#{opts[:interface]}",
-
-      # Set password (hashes) for passwords that must be preassigned when
-      # queries are disabled.
-      # - All hashes correspond to 'P@ssw0rdP@ssw0rd'
-      # - Be sure to put <key=value> in single quotes to prevent any bash
-      #   interpretation.
-      "'grub::password=#{grub_pwd_hash}'",
-      "'simp_openldap::server::conf::rootpw=#{ldap_rootpw_hash}'",
-      "'cli::local_priv_user_password=#{priv_user_pwd_hash}'"
     ]
 
-    config << "simp::cli::scenario=#{opts[:scenario]}" if opts[:scenario] != 'simp'
-    config
-  }
+    # When relevant, set password (hashes) for passwords that must be
+    # preassigned when queries are disabled.
+    # - All hashes correspond to 'P@ssw0rdP@ssw0rd'
+    # - Be sure to put <key=value> in single quotes to prevent any bash
+    #   interpretation.
+    config << "cli::simp::scenario=#{opts[:scenario]}" if opts[:scenario] != 'simp'
+    if opts[:set_grub_password]
+      config << "'grub::password=#{grub_pwd_hash}'"
+    else
+      config << 'cli::set_grub_password=false'
+    end
 
-  let(:config_opts) {
-    conf_opts = default_config_opts.dup
-    conf_opts += opts[:config_opts_to_add]
-    conf_opts -= opts[:config_opts_to_remove]
-    conf_opts
+    if opts[:priv_user].nil?
+      config << 'cli::ensure_priv_local_user=false'
+    else
+      if opts[:priv_user][:name] != 'simpadmin'
+        config << "cli::local_priv_user=#{opts[:priv_user][:name]}"
+      end
+
+      unless opts[:priv_user][:exists]
+        config << "'cli::local_priv_user_password=#{priv_user_pwd_hash}'"
+      end
+    end
+
+    if opts[:ldap_server]
+      config << "'simp_openldap::server::conf::rootpw=#{ldap_rootpw_hash}'"
+    else
+      config << 'cli::is_simp_ldap_server=false'
+    end
+
+    unless opts[:use_simp_internet_repos]
+      config << "cli::use_internet_simp_yum_repos=false"
+    end
+
+    unless opts[:logservers].empty?
+      config << "simp_options::syslog::log_servers=#{opts[:logservers].join(',,')}"
+
+      unless opts[:failover_logservers].empty?
+        config << "simp_options::syslog::failover_log_servers=#{opts[:failover_logservers].join(',,')}"
+      end
+    end
+
+    if (opts[:scenario] == 'poss') && !opts[:sssd]
+      # only case in which would be prompted for use of sssd
+      config << 'simp_options::sssd=false'
+    end
+
+
+    config += opts[:config_opts_to_add]
+    config
   }
 
   let(:puppet_env_dir) { "/etc/puppetlabs/code/environments/#{opts[:puppet_env]}" }
   let(:secondary_env_dir) { "/var/simp/environments/#{opts[:puppet_env]}" }
+  let(:os_release) { fact_on(host, 'operatingsystemmajrelease') }
   let(:fqdn) { fact_on(host, 'fqdn') }
   let(:domain) { fact_on(host, 'domain') }
   let(:fips) { fips_enabled(host) }
   let(:modules) { on(host, 'ls /usr/share/simp/modules').stdout.split("\n") }
+
+  if opts[:priv_user] && !opts[:priv_user][:exists]
+    it 'should ensure local priv user does not yet exist as a precondition' do
+      on(host, "userdel -r #{opts[:priv_user][:name]}", :accept_all_exit_codes => true)
+    end
+  end
 
   it "should run `simp config` to configure server for bootstrap #{opts[:description]}" do
     result = on(host, "#{opts[:env_vars].join(' ')} simp config #{config_opts.join(' ')}")
@@ -98,7 +173,7 @@ shared_examples 'simp config operation' do |host,options|
 
   it 'should create a environment.conf with secondary env in modulepath' do
     expect( file_exists_on(host, "#{puppet_env_dir}/environment.conf") ).to be true
-    custom_mod_path = 'modulepath = site:modules:/var/simp/environments/production/site_files:$basemodulepath'
+    custom_mod_path = "modulepath = site:modules:/var/simp/environments/#{opts[:puppet_env]}/site_files:$basemodulepath"
     on(host, "grep '#{custom_mod_path}' #{puppet_env_dir}/environment.conf")
   end
 
@@ -122,39 +197,74 @@ shared_examples 'simp config operation' do |host,options|
     # any value that is 'SKIP' can vary based on virtual host or `simp config` run
     expected = {
       'chrony::servers'                  =>"%{alias('simp_options::ntp::servers')}",
-
-      # FIXME The grub password shouldn't be stored in global hieradata,
-      # as it is not used by Puppet, yet. See SIMP-6527 and SIMP-9411.
-      'grub::password'                   => grub_pwd_hash,
-
       'simp::runlevel'                   => 3,
       'simp_options::dns::search'        => [ domain ],
 
       # Skip this because it is depends upon the host network
       'simp_options::dns::servers'        => 'SKIP',
       'simp_options::fips'                => fips,
-      'simp_options::ldap'                => true,
-      'simp_options::ldap::base_dn'       => domain.split('.').map { |x| "dc=#{x}" }.join(','),
-      'simp_options::ldap::bind_hash'     => 'SKIP',
-      'simp_options::ldap::bind_pw'       => 'SKIP',
-      'simp_options::ldap::sync_hash'     => 'SKIP',
-      'simp_options::ldap::sync_pw'       => 'SKIP',
 
       # Skip this because it is depends upon existing host ntp config
       'simp_options::ntp::servers'        => 'SKIP',
       'simp_options::puppet::ca'          => fqdn,
       'simp_options::puppet::ca_port'     => 8141,
       'simp_options::puppet::server'      => fqdn,
-      'simp_options::syslog::log_servers' => [],
+      'simp_options::syslog::log_servers' => opts[:logservers],
 
       # Skip this because it is depends upon the host network
       'simp_options::trusted_nets'        => 'SKIP',
 
-      'sssd::domains'                     => [ 'LDAP' ],
-      'svckill::mode'                     => 'warning',
-      'useradd::securetty'                => [],
-      'simp::classes'                     => ['simp::yum::repo::internet_simp']
+      'useradd::securetty'                => []
     }
+
+    # FIXME The grub password shouldn't be stored in global hieradata,
+    # as it is not used by Puppet, yet. See SIMP-6527 and SIMP-9411.
+    expected['grub::password'] = grub_pwd_hash if opts[:set_grub_password]
+
+    if opts[:ldap_server]
+      expected['simp_options::ldap']            = true
+      expected['simp_options::ldap::base_dn']   = domain.split('.').map { |x| "dc=#{x}" }.join(',')
+      expected['simp_options::ldap::bind_hash'] = 'SKIP'
+      expected['simp_options::ldap::bind_pw']   = 'SKIP'
+      expected['simp_options::ldap::sync_hash'] = 'SKIP'
+      expected['simp_options::ldap::sync_pw']   = 'SKIP'
+      expected['sssd::domains']                 = [ 'LDAP' ]
+      expected['simp_options::sssd'] = true if (opts[:scenario] == 'poss')
+    else
+      include_sssd_domains = true
+      if (opts[:scenario] == 'poss')
+        if opts[:sssd]
+          expected['simp_options::sssd'] = true
+        else
+          expected['simp_options::sssd'] = false
+          include_sssd_domains = false
+        end
+      end
+
+      if include_sssd_domains
+        if os_release < '8'
+          # can't be empty for EL7
+          expected['sssd::domains'] = [ 'LOCAL' ]
+        else
+          expected['sssd::domains'] = []
+        end
+      end
+    end
+
+    if opts[:use_simp_internet_repos]
+      expected['simp::classes'] = ['simp::yum::repo::internet_simp']
+    end
+
+    unless opts[:logservers].empty?
+     expected['simp_options::syslog::failover_log_servers'] = opts[:failover_logservers]
+    end
+
+    expected['svckill::mode'] = 'warning' if opts[:scenario] == 'simp'
+
+    if actual.keys.sort != expected.keys.sort
+      puts "actual = #{actual.keys.sort.to_yaml}"
+      puts "expected = #{expected.keys.sort.to_yaml}"
+    end
 
     expect( actual.keys.sort ).to eq(expected.keys.sort)
     normalized_exp = expected.delete_if { |key,value| value == 'SKIP' }
@@ -174,24 +284,33 @@ shared_examples 'simp config operation' do |host,options|
     adjustments = {
       'simp::server::allow_simp_user'              => false,
        'puppetdb::master::config::puppetdb_server' => "%{hiera('simp_options::puppet::server')}",
-       'puppetdb::master::config::puppetdb_port'   => 8139,
-       'simp_openldap::server::conf::rootpw'       => ldap_rootpw_hash,
-       'pam::access::users'                        => {
-         'simpadmin' => { 'origins' => [ 'ALL' ] }
-       },
-       'selinux::login_resources'                  => {
-         'simpadmin' => { 'seuser' => 'staff_u', 'mls_range' => 's0-s0:c0.c1023' }
-       },
-       'sudo::user_specifications'                 => {
-         'simpadmin_su' => {
-           'user_list' => [ 'simpadmin' ],
-           'cmnd'      => [ 'ALL' ],
-           'passwd'    => true,
-           'options'   => { 'role' => 'unconfined_r' }
-         }
-       },
-       'simp::server::classes'                     => [ 'simp::server::ldap', 'simp::puppetdb' ]
+       'puppetdb::master::config::puppetdb_port'   => 8139
     }
+
+    if opts[:ldap_server]
+      adjustments['simp_openldap::server::conf::rootpw'] = ldap_rootpw_hash
+      adjustments['simp::server::classes'] = [ 'simp::server::ldap', 'simp::puppetdb' ]
+    end
+
+    if opts[:priv_user]
+      adjustments['pam::access::users'] = {
+        opts[:priv_user][:name] => { 'origins' => [ 'ALL' ] }
+      }
+
+      adjustments['selinux::login_resources'] = {
+        opts[:priv_user][:name] => { 'seuser' => 'staff_u', 'mls_range' => 's0-s0:c0.c1023' }
+      }
+
+      adjustments['sudo::user_specifications'] = {
+        "#{opts[:priv_user][:name]}_su" => {
+          'user_list' => [ opts[:priv_user][:name] ],
+          'cmnd'      => [ 'ALL' ],
+          'passwd'    => !opts[:priv_user][:has_keys],
+          'options'   => { 'role' => 'unconfined_r' }
+        }
+      }
+    end
+
     expected.merge!(adjustments)
     expect( actual ).to eq(expected)
   end
@@ -230,13 +349,29 @@ shared_examples 'simp config operation' do |host,options|
     expect( actual ).to match(%r(^#{fqdn}$))
   end
 
-  it 'should create privileged user' do
-    on(host, 'grep simpadmin /etc/passwd')
-    on(host, 'grep simpadmin /etc/group')
-    expect( directory_exists_on(host, '/var/local/simpadmin') ).to be true
+  if opts[:priv_user] && !opts[:priv_user][:exists]
+    it "should create privileged user '#{opts[:priv_user][:name]}'" do
+      username = opts[:priv_user][:name]
+      on(host, "grep #{username} /etc/passwd")
+      on(host, "grep #{username} /etc/group")
+      expect( directory_exists_on(host, "/var/local/#{username}") ).to be true
+    end
 
-  # TODO make sure can login with password?
-  # sshd_config PasswordAuthentication yes
+    it "should be able to login via ssh as '#{opts[:priv_user][:name]}' using password" do
+      on(host, 'puppet resource package expect ensure=present')
+      on(host, 'mkdir -p /root/scripts')
+      script = '/root/scripts/ssh_cmd_script'
+      scp_to(host, File.join(files_dir, 'ssh_cmd_script'), script)
+      on(host, "chmod +x #{script}")
+      on(host, "#{script} #{opts[:priv_user][:name]} #{host.name} #{password} date")
+    end
+  end
+
+  if opts[:priv_user] && opts[:priv_user][:has_keys]
+    it "should copy privileged user '#{opts[:priv_user][:name]}' keys to /etc/ssh/local_keys" do
+      keys_file = "/etc/ssh/local_keys/#{opts[:priv_user][:name]}"
+      expect( file_exists_on(host, keys_file) ).to be true
+    end
   end
 
   it 'should ensure puppet server entry is in /etc/hosts' do
@@ -249,5 +384,7 @@ shared_examples 'simp config operation' do |host,options|
     EOM
   end
 
-  it 'should set grub password'
+  if opts[:set_grub_password]
+    it 'should set grub password'
+  end
 end
