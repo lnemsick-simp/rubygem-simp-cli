@@ -8,6 +8,9 @@ shared_examples 'simp config operation' do |host,options|
     # brief qualifier to the name of the example that runs `simp config`
     :description             => '',
 
+    # whether this is a (mock) SIMP ISO install
+    :iso_install             => false,
+
     # Puppet environment
     # - `simp config` default = 'production'
     # - Used in validation only
@@ -26,6 +29,7 @@ shared_examples 'simp config operation' do |host,options|
     :set_grub_password       => true,
 
     # Whether to configure the SIMP internet repos;
+    # - Only applies when :iso_install is false
     # - `simp config` default = true
     # - Used to set `simp config` configuration when false
     # - Used in validation
@@ -57,6 +61,7 @@ shared_examples 'simp config operation' do |host,options|
     :failover_logservers     => [],
 
     # privileged local user info:
+    # - Only applies when :iso_install is false
     # - When nil, no privileged user will be configured
     # - `simp config` defaults to configuring and if necessary creating a
     #   'simpadmin' user
@@ -83,7 +88,8 @@ shared_examples 'simp config operation' do |host,options|
     :interface               => 'eth0'
   }.merge(options)
 
-  if opts.key?(:priv_user) && opts[:priv_user]
+  opts[:priv_user] = nil if opts[:iso_install]
+  unless opts[:priv_user].nil?
     opts[:priv_user][:name] = 'simpadmin' unless opts[:priv_user].key?(:name)
 
     # doesn't make sense to have SSH authorized_keys file, if the user doesn't exist
@@ -131,15 +137,17 @@ shared_examples 'simp config operation' do |host,options|
       config << 'cli::set_grub_password=false'
     end
 
-    if opts[:priv_user].nil?
-      config << 'cli::ensure_priv_local_user=false'
-    else
-      if opts[:priv_user][:name] != 'simpadmin'
-        config << "cli::local_priv_user=#{opts[:priv_user][:name]}"
-      end
+    unless opts[:iso_install]
+      if opts[:priv_user].nil?
+        config << 'cli::ensure_priv_local_user=false'
+      else
+        if opts[:priv_user][:name] != 'simpadmin'
+          config << "cli::local_priv_user=#{opts[:priv_user][:name]}"
+        end
 
-      unless opts[:priv_user][:exists]
-        config << "'cli::local_priv_user_password=#{priv_user_pwd_hash}'"
+        unless opts[:priv_user][:exists]
+          config << "'cli::local_priv_user_password=#{priv_user_pwd_hash}'"
+        end
       end
     end
 
@@ -285,7 +293,11 @@ shared_examples 'simp config operation' do |host,options|
       end
     end
 
-    if opts[:use_simp_internet_repos]
+    if opts[:iso_install]
+      expected['simp::classes'] = ['simp::yum::repo::local_os_updates', 'simp::yum::repo::local_simp']
+      expected['simp::yum::repo::local_os_updates::servers'] = ["%{hiera('simp_options::puppet::server')}"]
+      expected['simp::yum::repo::local_simp::servers'] = ["%{hiera('simp_options::puppet::server')}"]
+    elsif opts[:use_simp_internet_repos]
       expected['simp::classes'] = ['simp::yum::repo::internet_simp']
     end
 
@@ -302,6 +314,8 @@ shared_examples 'simp config operation' do |host,options|
 
     expect( actual.keys.sort ).to eq(expected.keys.sort)
     normalized_exp = expected.delete_if { |key,value| value == 'SKIP' }
+    normalized_exp['simp::classes'].sort!  if normalized_exp.key?('simp:classes')
+    actual['simp::classes'].sort!  if actual.key?('simp:classes')
     normalized_exp.each do |key,value|
       expect( actual[key] ).to eq(value)
     end
@@ -317,16 +331,21 @@ shared_examples 'simp config operation' do |host,options|
     expected = YAML.load( file_contents_on(host, template) )
     adjustments = {
       'simp::server::allow_simp_user'              => false,
-       'puppetdb::master::config::puppetdb_server' => "%{hiera('simp_options::puppet::server')}",
-       'puppetdb::master::config::puppetdb_port'   => 8139
+      'puppetdb::master::config::puppetdb_server' => "%{hiera('simp_options::puppet::server')}",
+      'puppetdb::master::config::puppetdb_port'   => 8139,
+      'simp::server::classes'                     => [ 'simp::puppetdb' ]
     }
 
     if opts[:ldap_server]
       adjustments['simp_openldap::server::conf::rootpw'] = ldap_rootpw_hash
-      adjustments['simp::server::classes'] = [ 'simp::server::ldap', 'simp::puppetdb' ]
+      adjustments['simp::server::classes'] << 'simp::server::ldap'
     end
 
-    if opts[:priv_user]
+    if opts[:iso_install]
+      adjustments['simp::yum::repo::local_os_updates::enable_repo'] = false
+      adjustments['simp::yum::repo::local_simp::enable_repo'] = false
+      adjustments['simp::server::classes'] << 'simp::server::yum'
+    elsif opts[:priv_user]
       adjustments['pam::access::users'] = {
         opts[:priv_user][:name] => { 'origins' => [ 'ALL' ] }
       }
@@ -346,9 +365,10 @@ shared_examples 'simp config operation' do |host,options|
     end
 
     expected.merge!(adjustments)
+    expected['simp::server::classes'].sort!
+    actual['simp::server::classes'].sort! if actual.key?('simp::server::classes')
     expect( actual ).to eq(expected)
   end
-
 
   it "should set $simp_scenario to #{opts[:scenario]} in site.pp" do
     site_pp = File.join(puppet_env_dir, 'manifests', 'site.pp')
@@ -419,6 +439,8 @@ shared_examples 'simp config operation' do |host,options|
   end
 
   if opts[:set_grub_password]
+    # This will be replaced with using the simp_grub Puppet module, so may not
+    # be worth expending effort to test now
     it 'should set grub password'
   end
 end

@@ -205,10 +205,3 @@ describe 'simp config with customization for non-ISO install' do
     end
   end
 end
-
-#
-# other paths in decision tree, mock ISO
-# - has simp_filesystem.repo
-# should have different global hieradata (?)
-# should have different SIMP server hieradata (disable SIMP server repos in favor of filesystem repos)
-#    it 'should disable CentOS yum repos'
