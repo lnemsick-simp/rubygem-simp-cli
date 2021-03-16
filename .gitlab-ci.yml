@@ -221,6 +221,12 @@ pup6.x-fips:
   script:
     - 'BEAKER_fips=yes bundle exec rake beaker:suites[default,default]'
 
+pup6.x_centos8:
+  <<: *pup_6_x
+  <<: *acceptance_base
+  script:
+    - 'bundle exec rake beaker:suites[default,centos8]'
+
 pup6.x_config:
   <<: *pup_6_x
   <<: *acceptance_base
@@ -232,6 +238,12 @@ pup6.x_config-fips:
   <<: *acceptance_base
   script:
     - 'BEAKER_fips=yes bundle exec rake beaker:suites[config,default]'
+
+pup6.x_config_centos8:
+  <<: *pup_6_x
+  <<: *acceptance_base
+  script:
+    - 'bundle exec rake beaker:suites[config,centos8]'
 
 pup6.x_simp_kv:
   <<: *pup_6_x
@@ -245,3 +257,9 @@ pup6.x_simp_kv-fips:
   <<: *acceptance_base
   script:
     - 'BEAKER_fips=yes bundle exec rake beaker:suites[simp_kv,default]'
+
+pup6.x_simp_kv_centos8:
+  <<: *pup_6_x
+  <<: *acceptance_base
+  script:
+    - 'bundle exec rake beaker:suites[simp_kv,centos8]'
