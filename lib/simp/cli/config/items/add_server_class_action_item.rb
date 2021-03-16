@@ -15,7 +15,6 @@ module Simp::Cli::Config
       @description = "Add #{@class_to_add} class to SIMP server <host>.yaml"
       @file        = nil
       @category    = :puppet_env_server
-      @merge_value = true
     end
 
     def apply

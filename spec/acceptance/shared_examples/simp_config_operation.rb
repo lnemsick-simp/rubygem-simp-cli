@@ -330,7 +330,6 @@ shared_examples 'simp config operation' do |host,options|
     template = '/usr/share/simp/environment-skeleton/puppet/data/hosts/puppet.your.domain.yaml'
     expected = YAML.load( file_contents_on(host, template) )
     adjustments = {
-      'simp::server::allow_simp_user'              => false,
       'puppetdb::master::config::puppetdb_server' => "%{hiera('simp_options::puppet::server')}",
       'puppetdb::master::config::puppetdb_port'   => 8139,
       'simp::server::classes'                     => [ 'simp::puppetdb' ]
@@ -342,10 +341,12 @@ shared_examples 'simp config operation' do |host,options|
     end
 
     if opts[:iso_install]
+      adjustments['simp::server::allow_simp_user'] = true
       adjustments['simp::yum::repo::local_os_updates::enable_repo'] = false
       adjustments['simp::yum::repo::local_simp::enable_repo'] = false
       adjustments['simp::server::classes'] << 'simp::server::yum'
     elsif opts[:priv_user]
+      adjustments['simp::server::allow_simp_user'] = false
       adjustments['pam::access::users'] = {
         opts[:priv_user][:name] => { 'origins' => [ 'ALL' ] }
       }
