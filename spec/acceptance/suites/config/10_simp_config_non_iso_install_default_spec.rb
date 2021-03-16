@@ -17,7 +17,12 @@ test_name 'simp config with defaults for non-ISO'
 describe 'simp config with defaults for non-ISO install' do
   hosts.each do |host|
     context "using defaults on #{host}" do
-      include_examples 'simp config operation', host, { :description => 'using defaults' }
+      interfaces = fact_on(host, 'interfaces').split(',').delete_if { |x| x == 'lo' }
+      options = {
+        :description => 'using defaults',
+        :interface   => interfaces.first
+      }
+      include_examples 'simp config operation', host, options
     end
   end
 end

@@ -1,60 +1,94 @@
 require 'yaml'
 
 # @param host Host object
-# @param opts Test options Hash
-# @option opts :description
-# opts = {
-#  :description             => '',
-#  :puppet_env              => 'production',
-#  :scenario                => 'simp',
-#  :set_grub_password       => true,
-#  :use_simp_internet_repos => true,
-#  :ldap_server             => true,
-#  :sssd                    => true, # only an option in 'poss' scenario
-#  :logservers              => [],
-#  :failover_logservers     => [],
-#  :priv_user               =>  { # nil value disables
-#    :name     => 'simpadmin',
-#    :exists   => false,         # whether already exists
-#    :has_keys => false
-#  },
-#
-#  # additional `simp config` command line options/args
-#  :config_opts_to_add      => [],
-#
-#  # environment variables to set when running simp config
-#  :env_vars                => [],
-#
-#  # Interface to configure for puppetserver communication
-#  :interface               => 'eth1'
-# }.merge(options)
+# @param opts Test options Hash; see comments inline below
 shared_examples 'simp config operation' do |host,options|
 
- opts = {
-  :description             => '',
-  :puppet_env              => 'production',
-  :scenario                => 'simp',
-  :set_grub_password       => true,
-  :use_simp_internet_repos => true,
-  :ldap_server             => true,
-  :sssd                    => true, # only an option in 'poss' scenario
-  :logservers              => [],
-  :failover_logservers     => [],
-  :priv_user               =>  { # nil value disables
-    :name     => 'simpadmin',
-    :exists   => false,         # whether already exists
-    :has_keys => false
-  },
+  opts = {
+    # brief qualifier to the name of the example that runs `simp config`
+    :description             => '',
 
-  # additional `simp config` command line options/args
-  :config_opts_to_add      => [],
+    # Puppet environment
+    # - `simp config` default = 'production'
+    # - Used in validation only
+    :puppet_env              => 'production',
 
-  # environment variables to set when running simp config
-  :env_vars                => [],
+    # SIMP scenario
+    # - `simp config` default = 'simp'
+    # - Used to set `simp config` configuration when not 'simp'
+    # - Used in validation
+    :scenario                => 'simp',
 
-  # Interface to configure for puppetserver communication
-  :interface               => 'eth1'
- }.merge(options)
+    # Whether to set the grub password;
+    # - `simp config` default = true
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :set_grub_password       => true,
+
+    # Whether to configure the SIMP internet repos;
+    # - `simp config` default = true
+    # - Used to set `simp config` configuration when false
+    # - Used in validation
+    :use_simp_internet_repos => true,
+
+    # Whether the SIMP server is the LDAP server
+    # - `simp config` default = true
+    # - used to set `simp config` configuration
+    # - used in validation
+    :ldap_server             => true,
+
+    # In the 'poss' scenario when the SIMP server is NOT the LDAP server, whether
+    # to enable SSSD
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :sssd                    => true,
+
+    # List of logservers:
+    # - `simp config` default = []
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :logservers              => [],
+
+    # List of failover logservers:
+    # - `simp config` default = []
+    # - Only applies when :logservers not empty
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :failover_logservers     => [],
+
+    # privileged local user info:
+    # - When nil, no privileged user will be configured
+    # - `simp config` defaults to configuring and if necessary creating a
+    #   'simpadmin' user
+    # - Used to pre-configure user prior to `simp config`
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :priv_user               =>  {
+      :name     => 'simpadmin',  # name of the local privileged user
+      :exists   => false,        # whether user should already exist prior to `simp config`
+      :has_keys => false         # whether user should have SSH authorized_keys prior to `simp config`
+    },
+
+    # additional `simp config` command line options/args
+    :config_opts_to_add      => [],
+
+    # environment variables to set when running simp config
+    :env_vars                => [],
+
+    # Interface to configure for puppetserver communication
+    # - Needs to be set based on host configuration
+    # - Default here is a guess!
+    # - Used to set `simp config` configuration
+    # - Used in validation
+    :interface               => 'eth0'
+  }.merge(options)
+
+  if opts.key?(:priv_user) && opts[:priv_user]
+    opts[:priv_user][:name] = 'simpadmin' unless opts[:priv_user].key?(:name)
+
+    # doesn't make sense to have SSH authorized_keys file, if the user doesn't exist
+    opts[:priv_user][:has_keys] = false unless opts[:priv_user][:exists]
+  end
 
   let(:files_dir) { File.join(File.dirname(__FILE__), 'files') }
   let(:password) { 'P@ssw0rdP@ssw0rd' }
