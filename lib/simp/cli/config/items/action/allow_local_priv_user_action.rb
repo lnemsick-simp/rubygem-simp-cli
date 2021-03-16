@@ -18,14 +18,14 @@ module Simp::Cli::Config
       super(puppet_env_info)
       @key = 'puppet::allow_local_priv_user'
 
-      # override with a shorter message
+      # override base description with a more informative message
       @description = 'Allow ssh & sudo access to local user in SIMP server <host>.yaml'
 
       @merge_value = true  # all Items have Hash values and we want to add to
-                           # existing Hash entries, not replace
+                           # existing Hashes with a shallow merge
     end
 
-    # override with a shorter message
+    # override base apply_summary with a more informative message
     def apply_summary
       username = get_item( 'cli::local_priv_user' ).value
       file = @file ? File.basename(@file) : 'SIMP server <host>.yaml'

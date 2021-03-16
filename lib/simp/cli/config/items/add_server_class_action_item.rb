@@ -8,7 +8,6 @@ module Simp::Cli::Config
   # <host>.yaml file
   # Derived class must set @key and @class_to_add
   class AddServerClassActionItem < ActionItem
-    require 'simp/cli/config/yaml_utils'
 
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
       super(puppet_env_info)
