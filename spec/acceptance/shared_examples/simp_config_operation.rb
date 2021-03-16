@@ -345,24 +345,26 @@ shared_examples 'simp config operation' do |host,options|
       adjustments['simp::yum::repo::local_os_updates::enable_repo'] = false
       adjustments['simp::yum::repo::local_simp::enable_repo'] = false
       adjustments['simp::server::classes'] << 'simp::server::yum'
-    elsif opts[:priv_user]
+    else
       adjustments['simp::server::allow_simp_user'] = false
-      adjustments['pam::access::users'] = {
-        opts[:priv_user][:name] => { 'origins' => [ 'ALL' ] }
-      }
-
-      adjustments['selinux::login_resources'] = {
-        opts[:priv_user][:name] => { 'seuser' => 'staff_u', 'mls_range' => 's0-s0:c0.c1023' }
-      }
-
-      adjustments['sudo::user_specifications'] = {
-        "#{opts[:priv_user][:name]}_su" => {
-          'user_list' => [ opts[:priv_user][:name] ],
-          'cmnd'      => [ 'ALL' ],
-          'passwd'    => !opts[:priv_user][:has_keys],
-          'options'   => { 'role' => 'unconfined_r' }
+      if opts[:priv_user]
+        adjustments['pam::access::users'] = {
+          opts[:priv_user][:name] => { 'origins' => [ 'ALL' ] }
         }
-      }
+
+        adjustments['selinux::login_resources'] = {
+          opts[:priv_user][:name] => { 'seuser' => 'staff_u', 'mls_range' => 's0-s0:c0.c1023' }
+        }
+
+        adjustments['sudo::user_specifications'] = {
+          "#{opts[:priv_user][:name]}_su" => {
+            'user_list' => [ opts[:priv_user][:name] ],
+            'cmnd'      => [ 'ALL' ],
+            'passwd'    => !opts[:priv_user][:has_keys],
+            'options'   => { 'role' => 'unconfined_r' }
+          }
+        }
+      end
     end
 
     expected.merge!(adjustments)

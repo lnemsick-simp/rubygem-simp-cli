@@ -6,7 +6,11 @@ module Simp::Cli::Config
 
   # An ActionItem that adds an entry to a class list in the SIMP server's
   # <host>.yaml file
-  # Derived class must set @key and @class_to_add
+  #
+  # - Derived class must set @key and @class_to_add
+  # - Derived class should set  @class_to_add before calling the constructor
+  #   of this class to ensure the description is meaningful
+  #
   class AddServerClassActionItem < ActionItem
 
     def initialize(puppet_env_info = DEFAULT_PUPPET_ENV_INFO)
@@ -18,25 +22,27 @@ module Simp::Cli::Config
     end
 
     def apply
-      raise InternalError.new( "@class_to_add empty for #{self.class}" ) if "#{@class_to_add}".empty?
-
-
       @applied_status = :failed
+      if @class_to_add.to_s.strip.empty?
+        raise InternalError.new( "@class_to_add empty for #{self.class}" )
+      end
+
       fqdn    = get_item( 'cli::network::hostname' ).value
       @file    = File.join( @dir, "#{fqdn}.yaml")
 
       if File.exist?(@file)
         file_info = load_yaml_with_comment_blocks(@file)
         classes_key = get_classes_key(file_info[:content].keys)
-        unless classes_key
-          # SIMP server YAML is not configured as expected
-          err_msg = "Unable to add #{@class_to_add} to the class list in #{File.basename(@file)}."
-          err_msg += "\n#{@file} is missing a classes array."
-          raise ApplyError, err_msg
+        if classes_key.nil?
+          classes_key = 'simp::server::classes'
+          info( "Adding #{classes_key} with #{@class_to_add} to #{File.basename(@file)}.", [:GREEN] )
+          tag = pair_to_yaml_tag(classes_key, [ @class_to_add ])
+          add_yaml_tag_directive(tag, file_info)
+        else
+          info( "Adding #{@class_to_add} to #{classes_key} in #{File.basename(@file)}.", [:GREEN] )
+          merge_yaml_tag(classes_key, [ @class_to_add ], file_info)
         end
 
-        info( "Adding #{@class_to_add} to #{classes_key} in #{File.basename(@file)}.", [:GREEN] )
-        merge_yaml_tag(classes_key, [ @class_to_add ], file_info)
         @applied_status = :succeeded
       else
         error( "\nERROR: file not found: #{@file}", [:RED] )

@@ -80,13 +80,17 @@ describe 'simp config defaults for (mock) ISO install' do
 
       it 'should disable CentOS repos' do
         repo_files = on(host, 'ls /etc/yum.repos.d/CentOS*').stdout.split("\n")
+        # IniFile can't parse the CentOS*-Media.repo files, arrrrgh. So, until
+        # we find a better INI gem, just exclude these repo files from the list
+        # to check.
+        repo_files.delete_if { |repo_file| !repo_file.match(%r{^/etc/yum.repos.d/CentOS.*-Media.repo$}).nil? }
         enabled_repos = {}
         repo_files.each do |repo_file|
           repo_ini = IniFile.new({:content => file_contents_on(host, repo_file)})
           repo_names = repo_ini.sections
           repo_names.each do |repo_name|
-            # if 'enabled' missing or set to '1', repo is enabled
-            repo_enabled = (repo_ini[repo_name]['enabled'] != '0')
+            # if 'enabled' missing or set to 1, repo is enabled
+            repo_enabled = (repo_ini[repo_name]['enabled'] != 0)
             if repo_enabled
               enabled_repos[repo_file] = [] unless enabled_repos.key?(repo_file)
               enabled_repos[repo_file] << repo_name
