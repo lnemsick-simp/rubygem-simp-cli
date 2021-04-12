@@ -34,10 +34,7 @@ module Simp::Cli::Config
 
       if info
         authorized_keys_file = File.join(info.dir, '.ssh', 'authorized_keys')
-        if !File.exist?(authorized_keys_file)
-          info("#{authorized_keys_file} does not exist")
-          @applied_status = :unnecessary
-        else
+        if File.exist?(authorized_keys_file)
           dest = "#{@dest_dir}/#{@username}"
           info( "Copying ssh authorized keys for '#{@username}' to SIMP-managed #{dest}" )
           begin
@@ -50,6 +47,9 @@ module Simp::Cli::Config
           rescue Exception => e
             error("Copy of #{authorized_keys_file} to #{dest} failed:\n#{e}")
           end
+        else
+          info("#{authorized_keys_file} does not exist")
+          @applied_status = :unnecessary
         end
       end
     end
