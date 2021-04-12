@@ -135,6 +135,8 @@ EOM
       be copied to SIMP-managed location in /etc/ssh/local_keys.
       IMPORTANT: Users are responsible for updating the SIMP-managed authorized
       keys file when the user's authorized key list changes.
+  - Fixed a but in which running `simp config` multiple times could result in
+    multiple /etc/hosts enries for the puppetserver.
 
 * Tue Feb 09 2021 Jeanne Greulich <jeanne.greulich@onyxpoint.com> - 6.2.0
 - simp config changes:
