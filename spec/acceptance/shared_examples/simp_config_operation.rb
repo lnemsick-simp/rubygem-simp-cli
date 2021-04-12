@@ -37,8 +37,8 @@ shared_examples 'simp config operation' do |host,options|
 
     # Whether the SIMP server is the LDAP server
     # - `simp config` default = true
-    # - used to set `simp config` configuration
-    # - used in validation
+    # - Used to set `simp config` configuration
+    # - Used in validation
     :ldap_server             => true,
 
     # In the 'poss' scenario when the SIMP server is NOT the LDAP server, whether
