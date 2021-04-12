@@ -66,9 +66,9 @@ def generate_simp_lite_input_setting_values
     "1.2.3.12\n"                  << # failover log servers
     "tty0\n"                      << # securetty list
     "yes\n"                       << # ensure a privileged local user
-    "local_admin\n"               << # used 'simpadmin' as local username
-    "P@ssw0rdP@ssw0rd!\n"         << # simpadmin password
-    "P@ssw0rdP@ssw0rd!\n"            # confirm simpadmin password
+    "local_admin\n"               << # used 'local_admin' as local username
+    "P@ssw0rdP@ssw0rd!\n"         << # local_admin password
+    "P@ssw0rdP@ssw0rd!\n"            # confirm local_admin password
   input_io.rewind
   input_io
 end
