@@ -44,6 +44,7 @@ module Simp::Cli::Config
             FileUtils.cp(authorized_keys_file, dest)
             FileUtils.chmod(0644, dest)
             @applied_status = :succeeded
+            @applied_detail = "After bootstrap, the ssh authorized keys file for '#{@username}' is #{dest}"
           rescue Exception => e
             error("Copy of #{authorized_keys_file} to #{dest} failed:\n#{e}")
           end
@@ -55,7 +56,8 @@ module Simp::Cli::Config
     end
 
     def apply_summary
-      "Copy of user#{@username ? " '#{@username}'" : ''} ssh authorized keys to #{@dest_dir}/ #{@applied_status}"
+      "Copy of user#{@username ? " '#{@username}'" : ''} ssh authorized keys to #{@dest_dir}/ #{@applied_status}" +
+        (@applied_detail ? ":\n    #{@applied_detail}" : '')
     end
   end
 end
