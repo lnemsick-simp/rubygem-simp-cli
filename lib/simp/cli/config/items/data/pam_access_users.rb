@@ -39,8 +39,8 @@ module Simp::Cli::Config
     end
 
     # don't be interactive
-    def query;                                     nil;  end
-    def validate( x );                             true; end
-    def print_summary;                             nil;  end
+    def query;          nil;   end
+    def validate( x );  true;  end
+    def print_summary;  nil;   end
   end
 end

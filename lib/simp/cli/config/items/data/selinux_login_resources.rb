@@ -35,10 +35,9 @@ module Simp::Cli::Config
       }
     end
 
-    # don't be interactive and don't write to the answers file, because if the
-    # user modifies the entry in an answers file, we have no way to validate it
-    def query;                                     nil;  end
-    def validate( x );                             true; end
-    def print_summary;                             nil;  end
+    # don't be interactive
+    def query;          nil;   end
+    def validate( x );  true;  end
+    def print_summary;  nil;   end
   end
 end
